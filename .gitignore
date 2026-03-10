@@ -1,0 +1,45 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# Builds
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Visual Studio
+.vs/
+*.csproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+
+# JetBrains
+.idea/
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Claude Code cache
+.claude/cache/
+.claude/sessions/
+.claude/history.jsonl
+.claude/backups/
+.claude/debug/
+.claude/downloads/
+.claude/file-history/
+
+# Unity auto-generated
+*.pidb
+*.pdb
+*.mdb
+sysinfo.txt

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ac41459ba6d788489d76af09e538ece, type: 3}
+  m_Name: TomatoSeedBag
+  m_EditorClassIdentifier: Assembly-CSharp::ToolDefinition
+  toolId: tool_seed_tomato
+  toolName: Tomato Seeds
+  description: A bag of tomato seeds. Plant with E key.
+  toolType: 3
+  tier: 1
+  icon: {fileID: 0}
+  buyPrice: 10
+  sellPrice: 5
+  cropId: crop_tomato
