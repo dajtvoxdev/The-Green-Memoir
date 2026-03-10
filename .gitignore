@@ -43,3 +43,7 @@ Thumbs.db
 *.pdb
 *.mdb
 sysinfo.txt
+
+# Firebase large binaries (>100MB - use Git LFS or reinstall via SDK)
+Assets/Firebase/Plugins/x86_64/FirebaseCppApp*.bundle
+Assets/Firebase/Plugins/x86_64/FirebaseCppApp*.so
