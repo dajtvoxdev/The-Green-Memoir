@@ -29,14 +29,8 @@
 .DS_Store
 Thumbs.db
 
-# Claude Code cache
-.claude/cache/
-.claude/sessions/
-.claude/history.jsonl
-.claude/backups/
-.claude/debug/
-.claude/downloads/
-.claude/file-history/
+# Claude Code (entire folder)
+.claude/
 
 # Unity auto-generated
 *.pidb
