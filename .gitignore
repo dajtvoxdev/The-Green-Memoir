@@ -47,3 +47,23 @@ sysinfo.txt
 # Firebase large binaries (>100MB - use Git LFS or reinstall via SDK)
 Assets/Firebase/Plugins/x86_64/FirebaseCppApp*.bundle
 Assets/Firebase/Plugins/x86_64/FirebaseCppApp*.so
+
+# Unity packages / archives in Assets (should be installed via Package Manager)
+Assets/*.unitypackage
+Assets/*.zip
+Assets/*.rar
+Assets/*.7z
+
+# PDF documentation
+Assets/**/*.pdf
+
+# Screenshots (runtime captures, not source assets)
+Assets/Screenshots/
+
+# Firebase editor executables (platform tools, not source)
+Assets/Firebase/Editor/*.exe
+Assets/ExternalDependencyManager/Editor/**/*.exe
+
+# OS / editor temp
+*.stackdump
+crashlytics-build.properties
