@@ -68,6 +68,22 @@ public class PlayerEconomyManager : MonoBehaviour
     {
         // Subscribe to server data changes for real-time sync (#10)
         LoadDataManager.OnServerDataChanged += OnServerDataChanged;
+
+        // Dev mode: if userInGame is null (started PlayScene directly), create a test user
+        #if UNITY_EDITOR
+        if (LoadDataManager.userInGame == null)
+        {
+            Debug.Log("PlayerEconomy: [Dev] No user data — creating test user with 200G, 10D.");
+            LoadDataManager.userInGame = new User
+            {
+                Name = "DevFarmer",
+                Gold = 200,
+                Diamond = 10
+            };
+            OnGoldChanged?.Invoke(Gold);
+            OnDiamondChanged?.Invoke(Diamond);
+        }
+        #endif
     }
 
     /// <summary>
@@ -141,7 +157,7 @@ public class PlayerEconomyManager : MonoBehaviour
 
         if (Gold < amount)
         {
-            string msg = $"Not enough Gold! Need {amount}, have {Gold}";
+            string msg = $"Không đủ vàng! Cần {amount}G, hiện có {Gold}G";
             Debug.Log($"PlayerEconomy: {msg}");
             OnTransactionFailed?.Invoke(msg);
             return false;
@@ -199,7 +215,7 @@ public class PlayerEconomyManager : MonoBehaviour
 
         if (Diamond < amount)
         {
-            string msg = $"Not enough Diamond! Need {amount}, have {Diamond}";
+            string msg = $"Không đủ kim cương! Cần {amount}, hiện có {Diamond}";
             OnTransactionFailed?.Invoke(msg);
             return false;
         }
@@ -266,5 +282,18 @@ public class PlayerEconomyManager : MonoBehaviour
         {
             Instance = null;
         }
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+        {
+            FlushSave();
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
+        FlushSave();
     }
 }

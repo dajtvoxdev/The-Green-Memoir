@@ -124,14 +124,14 @@ public class ShopManager : MonoBehaviour
 
         if (!entry.CanBuy)
         {
-            ShowError("This item is not available for purchase.");
+            ShowError("Vật phẩm này không thể mua.");
             return false;
         }
 
         // Check stock
         if (entry.maxStock > 0 && entry.currentStock < quantity)
         {
-            ShowError($"Not enough stock! Only {entry.currentStock} left.");
+            ShowError($"Hết hàng! Chỉ còn {entry.currentStock}.");
             return false;
         }
 
@@ -140,7 +140,7 @@ public class ShopManager : MonoBehaviour
         // Check Gold
         if (PlayerEconomyManager.Instance == null || !PlayerEconomyManager.Instance.CanAffordGold(totalCost))
         {
-            ShowError($"Not enough Gold! Need {totalCost}G.");
+            ShowError($"Không đủ vàng! Cần {totalCost}G.");
             return false;
         }
 
@@ -148,7 +148,7 @@ public class ShopManager : MonoBehaviour
         InvenItems newItem = CreateItemFromEntry(entry, quantity);
         if (inventoryManager != null && !inventoryManager.CanAddItem(newItem))
         {
-            ShowError("Inventory is full!");
+            ShowError("Túi đồ đã đầy!");
             return false;
         }
 
@@ -158,6 +158,7 @@ public class ShopManager : MonoBehaviour
         if (inventoryManager != null)
         {
             inventoryManager.AddInventoryItem(newItem);
+            inventoryManager.FlushSave();
         }
 
         // Reduce stock
@@ -169,7 +170,8 @@ public class ShopManager : MonoBehaviour
         OnItemBought?.Invoke(entry, quantity);
         AudioManager.Instance?.PlaySFX("buy");
 
-        string msg = $"Bought {quantity}x {entry.item.itemName} for {totalCost}G";
+        string itemName = entry.item.itemName;
+        string msg = $"Đã mua {quantity}x {itemName} với giá {totalCost}G";
         Debug.Log($"ShopManager: {msg}");
         NotificationManager.Instance?.ShowNotification(msg);
 
@@ -190,15 +192,35 @@ public class ShopManager : MonoBehaviour
 
         if (CurrentCatalog == null)
         {
-            ShowError("No shop is open!");
+            ShowError("Chưa mở cửa hàng!");
             return false;
         }
 
-        // Find the sell price from catalog
+        // Find the sell price — try shop catalog first, then CropDefinition fallback
         ShopEntry sellEntry = FindEntryByItemId(itemId);
-        if (sellEntry == null || !sellEntry.CanSell)
+        int sellPrice = 0;
+        string itemName = itemId;
+
+        if (sellEntry != null && sellEntry.CanSell)
         {
-            ShowError("This shop doesn't buy that item.");
+            sellPrice = sellEntry.sellPrice;
+            itemName = sellEntry.item != null ? sellEntry.item.itemName : itemId;
+        }
+        else if (itemId.StartsWith("crop_") && CropGrowthManager.Instance != null)
+        {
+            // Harvested crop — look up sell price from CropDefinition
+            string cropId = itemId.Substring(5);
+            var cropDef = CropGrowthManager.Instance.GetCropDefinition(cropId);
+            if (cropDef != null && cropDef.sellPrice > 0)
+            {
+                sellPrice = cropDef.sellPrice;
+                itemName = cropDef.cropName;
+            }
+        }
+
+        if (sellPrice <= 0)
+        {
+            ShowError("Cửa hàng không thu mua vật phẩm này.");
             return false;
         }
 
@@ -221,21 +243,21 @@ public class ShopManager : MonoBehaviour
 
         if (foundIndex < 0 || availableQuantity < quantity)
         {
-            ShowError($"You don't have {quantity}x of this item.");
+            ShowError($"Bạn không có đủ {quantity}x vật phẩm này.");
             return false;
         }
 
-        int totalGold = sellEntry.sellPrice * quantity;
+        int totalGold = sellPrice * quantity;
 
         // Execute transaction
         inventoryManager.RemoveQuantityAt(foundIndex, quantity);
+        inventoryManager.FlushSave();
         PlayerEconomyManager.Instance?.EarnGold(totalGold);
 
         OnItemSold?.Invoke(itemId, quantity, totalGold);
         AudioManager.Instance?.PlaySFX("sell");
 
-        string itemName = sellEntry.item != null ? sellEntry.item.itemName : itemId;
-        string msg = $"Sold {quantity}x {itemName} for {totalGold}G";
+        string msg = $"Đã bán {quantity}x {itemName} được {totalGold}G";
         Debug.Log($"ShopManager: {msg}");
         NotificationManager.Instance?.ShowNotification(msg);
 

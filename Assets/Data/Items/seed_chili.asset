@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55f07867edc67d64c9f085786e0d237b, type: 3}
+  m_Name: seed_chili
+  m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
+  itemId: seed_chili
+  itemName: "H\u1EA1t \u1EDAt"
+  description: "\u1EDAt cay n\u1ED3ng."
+  itemType: 0
+  icon: {fileID: 21300000, guid: 035bad9fdb6a23d49a98d4f17ea77b3a, type: 3}
+  stackable: 1
+  maxStack: 99
+  buyPrice: 30
+  sellPrice: 7
+  cropId: chili
+  yieldMin: 0
+  yieldMax: 0

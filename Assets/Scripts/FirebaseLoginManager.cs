@@ -3,6 +3,7 @@ using Firebase.Extensions;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 
 public class FirebaseLoginManager : MonoBehaviour
 {
@@ -35,7 +36,11 @@ public class FirebaseLoginManager : MonoBehaviour
     public GameObject loginForm;
     public GameObject registerForm;
 
-    //Upload data User to Firebase when register 
+    [Header("Status Message")]
+    [Tooltip("Text element to show login/register error messages.")]
+    public TMP_Text statusText;
+
+    //Upload data User to Firebase when register
     private FirebaseDatabaseManager databaseManager;
     private void Start()
     {
@@ -60,24 +65,39 @@ public class FirebaseLoginManager : MonoBehaviour
         string email = ipRegisterEmail.text;
         string password = ipRegisterPassword.text;
 
+        if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+        {
+            ShowStatus("Vui lòng nhập email và mật khẩu.", Color.red);
+            return;
+        }
+
+        if (password.Length < 6)
+        {
+            ShowStatus("Mật khẩu phải có ít nhất 6 ký tự.", Color.red);
+            return;
+        }
+
+        ShowStatus("Đang đăng ký...", Color.white);
+
         auth.CreateUserWithEmailAndPasswordAsync(email, password).ContinueWithOnMainThread(task =>
         {
             if (task.IsCanceled)
             {
-                Debug.Log("Dang ki bi huy");
+                ShowStatus("Đăng ký bị hủy.", Color.yellow);
                 return;
             }
 
             if (task.IsFaulted)
             {
-                Debug.Log("Dang ki bi that bai");
-                Debug.Log(task.Exception);
+                string errorMsg = ParseFirebaseError(task.Exception);
+                ShowStatus(errorMsg, Color.red);
+                Debug.LogWarning($"Register failed: {task.Exception}");
                 return;
             }
 
             if (task.IsCompleted)
             {
-                Debug.Log("Dang ki thanh cong");
+                ShowStatus("Đăng ký thành công!", new Color(0.3f, 1f, 0.3f));
 
 
                 Map mapInGame = new Map();
@@ -86,7 +106,7 @@ public class FirebaseLoginManager : MonoBehaviour
                 FirebaseUser firebaseUser = task.Result.User;
                 Debug.Log("Firebase user: " + firebaseUser);
 
-                databaseManager.WriteDatabase("Users/" + firebaseUser.UserId, userInGame.ToString());
+                SeedNewUserProfile(firebaseUser, userInGame);
 
                 SceneManager.LoadScene("AsyncLoadingScene");
 
@@ -102,31 +122,37 @@ public class FirebaseLoginManager : MonoBehaviour
         string email = ipLoginEmail.text;
         string password = ipLoginPassword.text;
 
+        if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+        {
+            ShowStatus("Vui lòng nhập email và mật khẩu.", Color.red);
+            return;
+        }
+
+        ShowStatus("Đang đăng nhập...", Color.white);
+
         auth.SignInWithEmailAndPasswordAsync(email, password).ContinueWithOnMainThread(task =>
         {
             if (task.IsCanceled)
             {
-                Debug.Log("Dang nhap bi huy");
+                ShowStatus("Đăng nhập bị hủy.", Color.yellow);
                 return;
             }
 
             if (task.IsFaulted)
             {
-                Debug.Log("Dang nhap bi that bai");
-                Debug.Log(task.Exception);
+                string errorMsg = ParseFirebaseError(task.Exception);
+                ShowStatus(errorMsg, Color.red);
+                Debug.LogWarning($"Login failed: {task.Exception}");
                 return;
             }
 
             if (task.IsCompleted)
             {
-                //Thanh cong
                 Debug.Log("Dang nhap thanh cong");
-                FirebaseUser userLog = task.Result.User;
-                Debug.Log("UID: " + userLog.UserId);
-                Debug.Log("Email: " + userLog.Email);
                 FirebaseUser user = task.Result.User;
+                Debug.Log("UID: " + user.UserId);
 
-                //Chuyen man choi sau khi dang nhap thanh cong
+                ShowStatus("Đăng nhập thành công!", new Color(0.3f, 1f, 0.3f));
                 SceneManager.LoadScene("AsyncLoadingScene");
             }
         });
@@ -169,7 +195,7 @@ public class FirebaseLoginManager : MonoBehaviour
                 // Tạo dữ liệu mặc định cho người chơi ẩn danh
                 Map mapInGame = new Map();
                 User userInGame = new User("", 100, 50, mapInGame);
-                databaseManager.WriteDatabase("Users/" + user.UserId, userInGame.ToString());
+                SeedNewUserProfile(user, userInGame);
 
                 SceneManager.LoadScene("AsyncLoadingScene");
             }
@@ -280,7 +306,7 @@ public class FirebaseLoginManager : MonoBehaviour
                 // Tạo dữ liệu mặc định cho người chơi
                 Map mapInGame = new Map();
                 User userInGame = new User(user.DisplayName ?? "", 100, 50, mapInGame);
-                databaseManager.WriteDatabase("Users/" + user.UserId, userInGame.ToString());
+                SeedNewUserProfile(user, userInGame);
 
                 SceneManager.LoadScene("AsyncLoadingScene");
             });
@@ -292,5 +318,56 @@ public class FirebaseLoginManager : MonoBehaviour
         }
     }
 #endif
-}
 
+    /// <summary>
+    /// Shows a status message on the login UI.
+    /// </summary>
+    private void ShowStatus(string message, Color color)
+    {
+        if (statusText != null)
+        {
+            statusText.text = message;
+            statusText.color = color;
+        }
+        Debug.Log($"[Login] {message}");
+    }
+
+    private void SeedNewUserProfile(FirebaseUser firebaseUser, User userInGame)
+    {
+        if (databaseManager == null || firebaseUser == null || userInGame == null)
+        {
+            return;
+        }
+
+        databaseManager.WriteDatabase(FirebaseUserPaths.GetUserProfilePath(firebaseUser.UserId), userInGame.ToString());
+    }
+
+    /// <summary>
+    /// Extracts a user-friendly error message from Firebase exceptions.
+    /// </summary>
+    private string ParseFirebaseError(System.AggregateException exception)
+    {
+        if (exception == null) return "Lỗi không xác định.";
+
+        string fullMsg = exception.ToString();
+
+        if (fullMsg.Contains("INVALID_LOGIN_CREDENTIALS") || fullMsg.Contains("WRONG_PASSWORD"))
+            return "Email hoặc mật khẩu không đúng.";
+        if (fullMsg.Contains("USER_NOT_FOUND"))
+            return "Tài khoản không tồn tại.";
+        if (fullMsg.Contains("INVALID_EMAIL"))
+            return "Email không hợp lệ.";
+        if (fullMsg.Contains("WEAK_PASSWORD"))
+            return "Mật khẩu quá yếu (cần ít nhất 6 ký tự).";
+        if (fullMsg.Contains("EMAIL_ALREADY_IN_USE"))
+            return "Email đã được đăng ký.";
+        if (fullMsg.Contains("USER_DISABLED"))
+            return "Tài khoản đã bị khóa.";
+        if (fullMsg.Contains("NETWORK") || fullMsg.Contains("network"))
+            return "Lỗi mạng. Kiểm tra kết nối internet.";
+        if (fullMsg.Contains("TOO_MANY_ATTEMPTS"))
+            return "Quá nhiều lần thử. Vui lòng đợi rồi thử lại.";
+
+        return "Đăng nhập thất bại. Vui lòng thử lại.";
+    }
+}

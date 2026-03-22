@@ -4,6 +4,7 @@ using Firebase.Auth;
 using Firebase.Database;
 using Firebase.Extensions;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -55,6 +56,9 @@ public class LoadDataManager : MonoBehaviour
     private DatabaseReference userRef;
     private bool isInitialLoad = true;
 
+    private const int DefaultStarterGold = 200;
+    private const int DefaultStarterDiamond = 10;
+
     /// <summary>
     /// Singleton instance.
     /// </summary>
@@ -66,25 +70,42 @@ public class LoadDataManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            
+
             FirebaseApp app = FirebaseApp.DefaultInstance;
             reference = FirebaseDatabase.DefaultInstance.RootReference;
-            
-            firebaseUser = FirebaseAuth.DefaultInstance.CurrentUser;
-            
+
+            RefreshFirebaseUser();
+
             if (firebaseUser != null)
             {
                 GetUserInGame();
             }
             else
             {
-                Debug.LogError("LoadDataManager: No Firebase user logged in!");
-                OnUserLoaded?.Invoke(false);
+                Debug.LogWarning("LoadDataManager: No Firebase user yet (will retry on scene load).");
             }
         }
         else
         {
+            // Existing instance found — refresh user in case login just happened
+            RefreshFirebaseUser();
+            if (firebaseUser != null && !IsDataLoaded)
+            {
+                Instance.GetUserInGame();
+            }
             Destroy(gameObject);
+        }
+    }
+
+    /// <summary>
+    /// Re-fetches the current Firebase user. Call after login completes.
+    /// </summary>
+    public void RefreshFirebaseUser()
+    {
+        firebaseUser = FirebaseAuth.DefaultInstance.CurrentUser;
+        if (firebaseUser != null)
+        {
+            Debug.Log($"LoadDataManager: Firebase user = {firebaseUser.UserId}");
         }
     }
 
@@ -92,7 +113,7 @@ public class LoadDataManager : MonoBehaviour
     {
         // No update needed
     }
-    
+
     /// <summary>
     /// Loads user data from Firebase with callback.
     /// Phase 1: Added async callback support (T3 fix).
@@ -107,48 +128,74 @@ public class LoadDataManager : MonoBehaviour
             OnUserLoaded?.Invoke(false);
             return;
         }
-        
+
         reference.Child("Users").Child(firebaseUser.UserId).GetValueAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsCompleted && !task.IsFaulted && task.Result != null)
             {
-                DataSnapshot snapshot = task.Result;
-                
-                if (snapshot.Value != null)
+                try
                 {
-                    try
+                    bool shouldSaveProfile;
+                    bool isNewUser;
+                    userInGame = BuildUserFromSnapshot(task.Result, out shouldSaveProfile, out isNewUser);
+
+                    IsDataLoaded = userInGame != null;
+                    LastErrorMessage = null;
+
+                    if (IsDataLoaded)
                     {
-                        userInGame = JsonConvert.DeserializeObject<User>(snapshot.Value.ToString());
-                        IsDataLoaded = true;
-                        LastErrorMessage = null;
-                        Debug.Log("LoadDataManager: User data loaded successfully");
-                        Debug.Log("User in game: " + userInGame?.ToString());
-                        
-                        // Null check for MapInGame (T10 fix)
+                        if (isNewUser)
+                        {
+                            Debug.Log("LoadDataManager: No existing gameplay profile. Creating default starter profile.");
+                        }
+                        else
+                        {
+                            Debug.Log("LoadDataManager: User data loaded successfully");
+                        }
+
+                        Debug.Log("User in game: " + userInGame);
+
+                        #if UNITY_EDITOR
+                        if (userInGame != null && userInGame.Gold <= 0)
+                        {
+                            Debug.Log("LoadDataManager: [Dev] Granting starter gold (200G, 10D) to existing user.");
+                            userInGame.Gold = DefaultStarterGold;
+                            userInGame.Diamond = Mathf.Max(userInGame.Diamond, DefaultStarterDiamond);
+                            shouldSaveProfile = true;
+                        }
+                        #endif
+
+                        if (shouldSaveProfile)
+                        {
+                            SaveUserInGame((success, error) =>
+                            {
+                                if (success)
+                                {
+                                    Debug.Log("LoadDataManager: User profile migrated to the new schema.");
+                                }
+                                else
+                                {
+                                    Debug.LogWarning($"LoadDataManager: Failed to migrate user profile: {error}");
+                                }
+                            });
+                        }
+
                         if (userInGame?.MapInGame?.lstTilemapDetail == null)
                         {
-                            Debug.LogWarning("LoadDataManager: MapInGame is null or empty. New user?");
+                            Debug.LogWarning("LoadDataManager: MapInGame is null or empty. TileMapManager will create a fresh map.");
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Debug.LogError($"LoadDataManager: Failed to deserialize user data: {ex.Message}");
-                        IsDataLoaded = false;
-                        LastErrorMessage = ex.Message;
-                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    // No data exists for this user - create default
-                    Debug.Log("LoadDataManager: No existing user data. Creating new user.");
-                    userInGame = new User();
-                    IsDataLoaded = true;
+                    Debug.LogError($"LoadDataManager: Failed to resolve user data: {ex.Message}");
+                    IsDataLoaded = false;
+                    LastErrorMessage = ex.Message;
                 }
-                
+
                 onComplete?.Invoke(IsDataLoaded);
                 OnUserLoaded?.Invoke(IsDataLoaded);
 
-                // Start real-time listener after successful initial load
                 if (IsDataLoaded && !IsListening)
                 {
                     StartListening();
@@ -166,7 +213,7 @@ public class LoadDataManager : MonoBehaviour
             }
         });
     }
-    
+
     /// <summary>
     /// Saves the current user data to Firebase.
     /// Phase 2 Enhancement (#22): Uses versioned save via FirebaseTransactionManager
@@ -189,16 +236,17 @@ public class LoadDataManager : MonoBehaviour
             return;
         }
 
-        // Try versioned save for data integrity
         if (FirebaseTransactionManager.Instance != null)
         {
             SaveWithVersion(onComplete);
         }
         else
         {
-            // Fallback to direct write
             string jsonData = userInGame.ToString();
-            FirebaseDatabaseManager.Instance?.WriteDatabase("Users/" + firebaseUser.UserId, jsonData, onComplete);
+            FirebaseDatabaseManager.Instance?.WriteDatabase(
+                FirebaseUserPaths.GetUserProfilePath(firebaseUser.UserId),
+                jsonData,
+                onComplete);
         }
     }
 
@@ -229,11 +277,10 @@ public class LoadDataManager : MonoBehaviour
             onComplete?.Invoke(false, ex.Message);
         }
     }
-    
+
     /// <summary>
-    /// Starts a real-time listener on the user's data path.
-    /// Any changes from server will fire OnServerDataChanged event.
-    /// Phase 2 Feature (#10): Conflict-safe real-time sync.
+    /// Starts a real-time listener on the user's root path.
+    /// Listening to the root keeps compatibility with sibling nodes such as hasPurchased.
     /// </summary>
     public void StartListening()
     {
@@ -273,7 +320,6 @@ public class LoadDataManager : MonoBehaviour
             return;
         }
 
-        // Skip initial event (data already loaded via GetUserInGame)
         if (isInitialLoad)
         {
             isInitialLoad = false;
@@ -284,20 +330,41 @@ public class LoadDataManager : MonoBehaviour
 
         try
         {
-            User serverUser = JsonConvert.DeserializeObject<User>(args.Snapshot.Value.ToString());
+            bool shouldSaveProfile;
+            bool isNewUser;
+            User serverUser = BuildUserFromSnapshot(args.Snapshot, out shouldSaveProfile, out isNewUser);
 
             if (serverUser == null) return;
 
-            // Check if server version is newer than local
-            if (userInGame != null && serverUser.Version > userInGame.Version)
-            {
-                Debug.Log($"LoadDataManager: Server data updated (v{serverUser.Version} > local v{userInGame.Version})");
+            bool localMissing = userInGame == null;
+            bool hasNewerVersion = userInGame != null && serverUser.Version > userInGame.Version;
+            bool purchaseChanged = userInGame != null && serverUser.HasPurchased != userInGame.HasPurchased;
 
-                // Update local data with server data (server-wins strategy)
+            if (localMissing || hasNewerVersion || purchaseChanged)
+            {
+                if (hasNewerVersion)
+                {
+                    Debug.Log($"LoadDataManager: Server data updated (v{serverUser.Version} > local v{userInGame.Version})");
+                }
+
                 userInGame = serverUser;
                 OnServerDataChanged?.Invoke(serverUser);
 
-                NotificationManager.Instance?.ShowNotification("Data synced from server.", 2f);
+                if (hasNewerVersion)
+                {
+                    NotificationManager.Instance?.ShowNotification("Du lieu da dong bo tu may chu.", 2f);
+                }
+            }
+
+            if (shouldSaveProfile)
+            {
+                SaveUserInGame((success, error) =>
+                {
+                    if (!success)
+                    {
+                        Debug.LogWarning($"LoadDataManager: Failed to persist normalized listener data: {error}");
+                    }
+                });
             }
         }
         catch (Exception ex)
@@ -321,7 +388,6 @@ public class LoadDataManager : MonoBehaviour
     /// </summary>
     public static void Reset()
     {
-        // Stop listener before reset
         if (Instance != null)
         {
             Instance.StopListening();
@@ -340,5 +406,238 @@ public class LoadDataManager : MonoBehaviour
         {
             Instance = null;
         }
+    }
+
+    private User BuildUserFromSnapshot(DataSnapshot snapshot, out bool shouldSaveProfile, out bool isNewUser)
+    {
+        shouldSaveProfile = false;
+        isNewUser = false;
+
+        if (snapshot?.Value == null)
+        {
+            shouldSaveProfile = true;
+            isNewUser = true;
+            return CreateDefaultUserProfile();
+        }
+
+        string normalizedRootJson = FirebaseJsonUtility.NormalizeReadValue(snapshot.GetRawJsonValue());
+        if (string.IsNullOrEmpty(normalizedRootJson) || normalizedRootJson == "null" || normalizedRootJson == "{}")
+        {
+            shouldSaveProfile = true;
+            isNewUser = true;
+            return CreateDefaultUserProfile();
+        }
+
+        JToken rootToken;
+        try
+        {
+            rootToken = JToken.Parse(normalizedRootJson);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"LoadDataManager: Root user payload is invalid JSON. Recreating profile. {ex.Message}");
+            shouldSaveProfile = true;
+            isNewUser = true;
+            return CreateDefaultUserProfile();
+        }
+
+        bool hasProfileNode;
+        bool usedLegacyRootProfile;
+        User resolvedUser = TryExtractUser(rootToken, out hasProfileNode, out usedLegacyRootProfile);
+
+        if (NeedsBootstrapProfile(resolvedUser))
+        {
+            shouldSaveProfile = true;
+            isNewUser = true;
+            resolvedUser = CreateDefaultUserProfile();
+        }
+
+        bool rootHasPurchased = TryGetBoolean(rootToken["hasPurchased"]);
+        if (rootHasPurchased && resolvedUser != null && !resolvedUser.HasPurchased)
+        {
+            resolvedUser.HasPurchased = true;
+            shouldSaveProfile = true;
+        }
+
+        if (resolvedUser != null)
+        {
+            if (resolvedUser.MapInGame == null)
+            {
+                if (HasLegacyMapNode(rootToken))
+                {
+                    Debug.LogWarning("LoadDataManager: Found legacy map data under Users/{uid}/map. It does not match the current schema, so a fresh tilemap will be created.");
+                }
+
+                resolvedUser.MapInGame = new Map();
+                shouldSaveProfile = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(resolvedUser.Name))
+            {
+                resolvedUser.Name = firebaseUser?.DisplayName ?? "Farmer";
+                shouldSaveProfile = true;
+            }
+        }
+
+        if (!hasProfileNode || usedLegacyRootProfile)
+        {
+            shouldSaveProfile = true;
+        }
+
+        return resolvedUser;
+    }
+
+    private User TryExtractUser(JToken rootToken, out bool hasProfileNode, out bool usedLegacyRootProfile)
+    {
+        hasProfileNode = false;
+        usedLegacyRootProfile = false;
+
+        if (rootToken == null)
+        {
+            return null;
+        }
+
+        if (rootToken.Type == JTokenType.Object)
+        {
+            JObject rootObject = (JObject)rootToken;
+            JToken profileToken = rootObject["profile"];
+            if (profileToken != null)
+            {
+                hasProfileNode = true;
+                return DeserializeUserToken(profileToken);
+            }
+        }
+
+        if (LooksLikeUserToken(rootToken))
+        {
+            usedLegacyRootProfile = true;
+            return DeserializeUserToken(rootToken);
+        }
+
+        return null;
+    }
+
+    private User DeserializeUserToken(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null)
+        {
+            return null;
+        }
+
+        string json = token.Type == JTokenType.String
+            ? FirebaseJsonUtility.NormalizeReadValue(token.ToString(Formatting.None))
+            : token.ToString(Formatting.None);
+
+        if (string.IsNullOrEmpty(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonConvert.DeserializeObject<User>(json);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"LoadDataManager: Failed to deserialize user token: {ex.Message}");
+            return null;
+        }
+    }
+
+    private bool LooksLikeUserToken(JToken token)
+    {
+        if (token == null)
+        {
+            return false;
+        }
+
+        if (token.Type == JTokenType.String)
+        {
+            string normalized = FirebaseJsonUtility.NormalizeReadValue(token.ToString(Formatting.None));
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return false;
+            }
+
+            try
+            {
+                token = JToken.Parse(normalized);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        if (token.Type != JTokenType.Object)
+        {
+            return false;
+        }
+
+        JObject obj = (JObject)token;
+        return obj["Name"] != null
+            || obj["Gold"] != null
+            || obj["Diamond"] != null
+            || obj["MapInGame"] != null
+            || obj["Version"] != null
+            || obj["hasPurchased"] != null;
+    }
+
+    private bool NeedsBootstrapProfile(User candidate)
+    {
+        if (candidate == null)
+        {
+            return true;
+        }
+
+        return candidate.MapInGame == null
+            && string.IsNullOrWhiteSpace(candidate.Name)
+            && candidate.Gold == 0
+            && candidate.Diamond == 0
+            && candidate.Version == 0;
+    }
+
+    private bool HasLegacyMapNode(JToken rootToken)
+    {
+        return rootToken is JObject rootObject && rootObject["map"] != null;
+    }
+
+    private bool TryGetBoolean(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (token.Type == JTokenType.Boolean)
+            {
+                return token.Value<bool>();
+            }
+
+            if (token.Type == JTokenType.String)
+            {
+                string normalized = FirebaseJsonUtility.NormalizeReadValue(token.ToString(Formatting.None));
+                return bool.TryParse(normalized, out bool result) && result;
+            }
+
+            return token.Value<bool>();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private User CreateDefaultUserProfile()
+    {
+        return new User
+        {
+            Name = firebaseUser?.DisplayName ?? "Farmer",
+            Gold = DefaultStarterGold,
+            Diamond = DefaultStarterDiamond,
+            MapInGame = new Map()
+        };
     }
 }

@@ -1,0 +1,40 @@
+{
+  "rules": {
+    "Users": {
+      "$uid": {
+        // User can read and write their own game data
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+
+        "Name": {
+          ".validate": "newData.isString() && newData.val().length <= 50"
+        },
+        "Gold": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "Diamond": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "Version": {
+          ".validate": "newData.isNumber()"
+        },
+        "hasPurchased": {
+          // Only Admin SDK can set hasPurchased (web payment webhook)
+          // Regular users cannot change their own purchase status
+          ".write": false,
+          ".validate": "newData.isBoolean()"
+        },
+        "MapInGame": {
+          // Allow nested map data
+          ".validate": true
+        }
+      }
+    },
+
+    // Deny access to everything else
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02d4620e9c0fa974c8f84c263c3d360f, type: 3}
+  m_Name: crop_strawberry
+  m_EditorClassIdentifier: Assembly-CSharp::CropDefinition
+  cropId: strawberry
+  cropName: "D\xE2u T\xE2y"
+  description: "D\xE2u t\xE2y ng\u1ECDt ng\xE0o. Thu ho\u1EA1ch nhi\u1EC1u l\u1EA7n."
+  seedItemId: seed_strawberry
+  harvestItemId: crop_strawberry
+  stageDurations:
+  - 85
+  - 105
+  - 100
+  - 90
+  requiresWater: 1
+  witherTime: 0
+  yieldMin: 3
+  yieldMax: 5
+  regrowable: 1
+  regrowToStage: 2
+  stageSprites:
+  - {fileID: 21300000, guid: e9485c8a75cb571458e68a71ca56a40b, type: 3}
+  - {fileID: 21300000, guid: 58d435d28b2865745a8c4eaec882baac, type: 3}
+  - {fileID: 21300000, guid: 9e05ccee76c95804f86f80fec2fdbe44, type: 3}
+  - {fileID: 21300000, guid: 6c24746a862424640a2c7be9b5da3133, type: 3}
+  - {fileID: 21300000, guid: bfdf80af18375f4489b81d0d155e6b1e, type: 3}
+  sellPrice: 45

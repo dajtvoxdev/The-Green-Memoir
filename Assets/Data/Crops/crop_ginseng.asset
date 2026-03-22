@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02d4620e9c0fa974c8f84c263c3d360f, type: 3}
+  m_Name: crop_ginseng
+  m_EditorClassIdentifier: Assembly-CSharp::CropDefinition
+  cropId: ginseng
+  cropName: "Nh\xE2n S\xE2m"
+  description: "Nh\xE2n s\xE2m qu\xFD hi\u1EBFm. Gi\xE1 tr\u1ECB cao nh\u1EA5t."
+  seedItemId: seed_ginseng
+  harvestItemId: crop_ginseng
+  stageDurations:
+  - 200
+  - 250
+  - 250
+  - 200
+  requiresWater: 1
+  witherTime: 0
+  yieldMin: 1
+  yieldMax: 1
+  regrowable: 0
+  regrowToStage: 2
+  stageSprites:
+  - {fileID: 21300000, guid: 6509f76bba7b1d54ab25c4ebf01daf0f, type: 3}
+  - {fileID: 21300000, guid: 6ef7014cbb235b3449760a9e4973bd98, type: 3}
+  - {fileID: 21300000, guid: 7d19efb62465ee5499682eb6f3b5c3e6, type: 3}
+  - {fileID: 21300000, guid: 2f94d96687c2c6d40ab0d57383f66f70, type: 3}
+  - {fileID: 21300000, guid: 204f877fa4691fc43ab3f5fab78e19ca, type: 3}
+  sellPrice: 200

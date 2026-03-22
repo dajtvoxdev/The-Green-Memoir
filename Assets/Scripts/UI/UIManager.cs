@@ -60,7 +60,15 @@ public class UIManager : MonoBehaviour
     /// </summary>
     private void BuildRegistry()
     {
+        // Preserve any panels registered before Awake (e.g., from other scripts' Awake)
+        var earlyRegistrations = panelRegistry;
         panelRegistry = new Dictionary<string, PanelBase>();
+
+        if (earlyRegistrations != null)
+        {
+            foreach (var kvp in earlyRegistrations)
+                panelRegistry[kvp.Key] = kvp.Value;
+        }
 
         if (panels == null) return;
 
@@ -208,6 +216,10 @@ public class UIManager : MonoBehaviour
     public void RegisterPanel(PanelBase panel)
     {
         if (panel == null || string.IsNullOrEmpty(panel.panelId)) return;
+
+        // Ensure registry exists (may be called before Awake if another script's Awake runs first)
+        if (panelRegistry == null)
+            panelRegistry = new Dictionary<string, PanelBase>();
 
         panelRegistry[panel.panelId] = panel;
     }

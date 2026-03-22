@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02d4620e9c0fa974c8f84c263c3d360f, type: 3}
+  m_Name: crop_tomato
+  m_EditorClassIdentifier: Assembly-CSharp::CropDefinition
+  cropId: tomato
+  cropName: "C\xE0 Chua"
+  description: "C\xE0 chua ch\xEDn m\u1ECDng. Gi\xE1 tr\u1ECB cao."
+  seedItemId: seed_tomato
+  harvestItemId: crop_tomato
+  stageDurations:
+  - 45
+  - 55
+  - 55
+  - 45
+  requiresWater: 1
+  witherTime: 0
+  yieldMin: 2
+  yieldMax: 4
+  regrowable: 0
+  regrowToStage: 2
+  stageSprites:
+  - {fileID: 21300000, guid: df0b0c42622b2dc4da219c337dc49453, type: 3}
+  - {fileID: 21300000, guid: 4cca7134f69846143915d896052e9ef0, type: 3}
+  - {fileID: 21300000, guid: a49887af8bcf48b42858d66acf239db9, type: 3}
+  - {fileID: 21300000, guid: 4abf796e8b3934f4b8e0aebb892e623e, type: 3}
+  - {fileID: 21300000, guid: e69e68a4fff5487468a3e1460efea3a2, type: 3}
+  sellPrice: 30

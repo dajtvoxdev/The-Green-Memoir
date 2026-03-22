@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
 /// <summary>
 /// Runtime manager for the plant growth state machine.
@@ -30,6 +31,12 @@ public class CropGrowthManager : MonoBehaviour
     [Tooltip("Reference to the TileMapManager for tile data and Firebase sync.")]
     public TileMapManager tileMapManager;
 
+    [Tooltip("Ground tilemap used for CellToWorld position lookup (same ref as CropIndicatorUI).")]
+    public Tilemap groundTilemap;
+
+    [Tooltip("Parent Transform for crop visual GameObjects. Leave null to parent to this GameObject.")]
+    public Transform cropVisualParent;
+
     /// <summary>
     /// O(1) lookup: cropId -> CropDefinition.
     /// Built once from the cropDefinitions array at Start().
@@ -41,6 +48,12 @@ public class CropGrowthManager : MonoBehaviour
     /// Avoids scanning the entire tile cache every update cycle.
     /// </summary>
     private HashSet<(int x, int y)> activeCropTiles;
+
+    /// <summary>
+    /// Per-tile SpriteRenderers for crop visuals. Keyed by (x, y).
+    /// Avoids a tilemap lookup per frame; destroyed when the crop is harvested.
+    /// </summary>
+    private Dictionary<(int x, int y), SpriteRenderer> _cropVisuals;
 
     /// <summary>
     /// Event fired when a crop changes growth stage.
@@ -69,6 +82,7 @@ public class CropGrowthManager : MonoBehaviour
 
     void Start()
     {
+        _cropVisuals = new Dictionary<(int, int), SpriteRenderer>();
         BuildCropRegistry();
         ScanForActiveCrops();
         StartCoroutine(GrowthUpdateLoop());
@@ -128,6 +142,9 @@ public class CropGrowthManager : MonoBehaviour
             if (tile.HasCrop)
             {
                 activeCropTiles.Add((tile.x, tile.y));
+
+                if (cropRegistry.TryGetValue(tile.cropId, out CropDefinition def))
+                    RefreshCropVisual(tile.x, tile.y, def, (GrowthStage)tile.growthStage);
             }
         }
 
@@ -177,15 +194,19 @@ public class CropGrowthManager : MonoBehaviour
                 continue;
             }
 
-            // Calculate elapsed seconds since planting
-            float elapsedSeconds = (nowMs - tile.plantedAt) / 1000f;
-
-            // Check watering requirement
-            if (cropDef.requiresWater && tile.lastWateredAt == 0)
+            // Check watering requirement (rain counts as watering)
+            bool rainWatering = WeatherManager.Instance != null && WeatherManager.Instance.IsRainingToday;
+            if (cropDef.requiresWater && tile.lastWateredAt == 0 && !rainWatering)
             {
-                // Crop not watered — growth is paused
+                // Crop not watered — growth is paused.
+                // Shift plantedAt forward so elapsed time doesn't accumulate
+                // while unwatered. This prevents instant growth when watered late.
+                tile.plantedAt = nowMs;
                 continue;
             }
+
+            // Calculate elapsed seconds since planting
+            float elapsedSeconds = (nowMs - tile.plantedAt) / 1000f;
 
             // Determine the new growth stage from elapsed time
             GrowthStage newStage = cropDef.CalculateStageFromElapsed(elapsedSeconds);
@@ -194,6 +215,7 @@ public class CropGrowthManager : MonoBehaviour
             if (newStage != oldStage)
             {
                 tile.growthStage = (int)newStage;
+                RefreshCropVisual(pos.x, pos.y, cropDef, newStage);
 
                 // Fire stage change event
                 OnCropStageChanged?.Invoke(pos.x, pos.y, oldStage, newStage, cropDef);
@@ -260,9 +282,9 @@ public class CropGrowthManager : MonoBehaviour
         }
 
         // Only allow planting on tilled ground
-        if (tile.tilemapState != TilemapState.Ground)
+        if (tile.tilemapState != TilemapState.Tilled)
         {
-            Debug.LogWarning($"CropGrowthManager: Cannot plant — tile ({x},{y}) is not tilled ground.");
+            Debug.LogWarning($"CropGrowthManager: Cannot plant — tile ({x},{y}) is not tilled ground (state={tile.tilemapState}).");
             return false;
         }
 
@@ -275,10 +297,13 @@ public class CropGrowthManager : MonoBehaviour
         // Track this tile
         activeCropTiles.Add((x, y));
 
+        // Show seed sprite immediately
+        CropDefinition cropDef = cropRegistry[cropId];
+        RefreshCropVisual(x, y, cropDef, GrowthStage.Seed);
+
         // Persist to Firebase
         _ = tileMapManager.UpdateCropDataAsync(x, y, cropId, 0);
 
-        CropDefinition cropDef = cropRegistry[cropId];
         Debug.Log($"CropGrowthManager: Planted '{cropDef.cropName}' at ({x},{y})");
 
         return true;
@@ -363,20 +388,22 @@ public class CropGrowthManager : MonoBehaviour
             tile.plantedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             tile.lastWateredAt = 0;
 
+            RefreshCropVisual(x, y, cropDef, cropDef.regrowToStage);
             _ = tileMapManager.UpdateCropDataAsync(x, y, tile.cropId, tile.growthStage);
             Debug.Log($"CropGrowthManager: Harvested regrowable '{cropDef.cropName}' at ({x},{y}), yield={yield}, reset to {cropDef.regrowToStage}");
         }
         else
         {
-            // One-time crop: clear the tile
+            // One-time crop: clear the tile, remove visual, revert to Grass state.
+            // Setting state to Grass forces player to re-till before planting again.
+            RemoveCropVisual(x, y);
             tile.ClearCrop();
+            tile.tilemapState = TilemapState.Grass;
             activeCropTiles.Remove((x, y));
 
-            // Reset tile state back to Ground
-            tileMapManager.SetStateForTilemapDetail(x, y, TilemapState.Ground);
-
             _ = tileMapManager.UpdateCropDataAsync(x, y, null, 0);
-            Debug.Log($"CropGrowthManager: Harvested '{cropDef.cropName}' at ({x},{y}), yield={yield}, tile cleared.");
+            tileMapManager.SetStateForTilemapDetail(x, y, TilemapState.Grass);
+            Debug.Log($"CropGrowthManager: Harvested '{cropDef.cropName}' at ({x},{y}), yield={yield}, tile reverted to Grass.");
         }
 
         return harvestedItem;
@@ -416,4 +443,55 @@ public class CropGrowthManager : MonoBehaviour
     /// Gets the number of actively growing crops.
     /// </summary>
     public int ActiveCropCount => activeCropTiles?.Count ?? 0;
+
+    // ==================== CROP VISUALS ====================
+
+    /// <summary>
+    /// Creates or updates the SpriteRenderer visual for a crop tile.
+    /// Uses groundTilemap.GetCellCenterWorld() for pixel-perfect tile alignment.
+    /// </summary>
+    private void RefreshCropVisual(int x, int y, CropDefinition cropDef, GrowthStage stage)
+    {
+        if (groundTilemap == null) return;
+
+        Sprite sprite = cropDef.GetStageSprite(stage);
+
+        if (!_cropVisuals.TryGetValue((x, y), out SpriteRenderer sr))
+        {
+            var go = new GameObject($"CropVisual_{x}_{y}");
+            go.transform.SetParent(cropVisualParent != null ? cropVisualParent : transform);
+            go.transform.position = groundTilemap.GetCellCenterWorld(new Vector3Int(x, y, 0));
+
+            sr = go.AddComponent<SpriteRenderer>();
+            sr.sortingLayerName = "Default";
+            sr.sortingOrder = 5;
+
+            _cropVisuals[(x, y)] = sr;
+        }
+
+        sr.sprite = sprite;
+        sr.gameObject.SetActive(sprite != null);
+    }
+
+    /// <summary>
+    /// Destroys the crop visual for a tile and removes it from the tracking dictionary.
+    /// </summary>
+    private void RemoveCropVisual(int x, int y)
+    {
+        if (_cropVisuals.TryGetValue((x, y), out SpriteRenderer sr))
+        {
+            if (sr != null) Destroy(sr.gameObject);
+            _cropVisuals.Remove((x, y));
+        }
+    }
+
+    void OnDestroy()
+    {
+        if (_cropVisuals == null) return;
+        foreach (var sr in _cropVisuals.Values)
+        {
+            if (sr != null) Destroy(sr.gameObject);
+        }
+        _cropVisuals.Clear();
+    }
 }

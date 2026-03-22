@@ -51,7 +51,14 @@ public class UsernameWizard : MonoBehaviour
         if(ipUsername.text != "")
         {
             LoadDataManager.userInGame.Name = ipUsername.text;
-            databaseManager.WriteDatabase("Users/" + LoadDataManager.firebaseUser.UserId, LoadDataManager.userInGame.ToString());
+            if (LoadDataManager.Instance != null)
+            {
+                LoadDataManager.Instance.SaveUserInGame();
+            }
+            else if (databaseManager != null)
+            {
+                databaseManager.WriteDatabase(FirebaseUserPaths.GetUserProfilePath(LoadDataManager.firebaseUser.UserId), LoadDataManager.userInGame.ToString());
+            }
 
             username.text = ipUsername.text;
             usernameWizard.SetActive(false);

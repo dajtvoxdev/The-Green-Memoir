@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02d4620e9c0fa974c8f84c263c3d360f, type: 3}
+  m_Name: crop_cucumber
+  m_EditorClassIdentifier: Assembly-CSharp::CropDefinition
+  cropId: cucumber
+  cropName: "D\u01B0a Chu\u1ED9t"
+  description: "D\u01B0a chu\u1ED9t m\xE1t l\xE0nh. Cho thu ho\u1EA1ch nhi\u1EC1u
+    l\u1EA7n."
+  seedItemId: seed_cucumber
+  harvestItemId: crop_cucumber
+  stageDurations:
+  - 40
+  - 50
+  - 50
+  - 40
+  requiresWater: 1
+  witherTime: 0
+  yieldMin: 1
+  yieldMax: 3
+  regrowable: 1
+  regrowToStage: 2
+  stageSprites:
+  - {fileID: 21300000, guid: 3c0eac2f713ca28419f973e76d96b425, type: 3}
+  - {fileID: 21300000, guid: e64524782cbbd854bb721562e18fb0c8, type: 3}
+  - {fileID: 21300000, guid: f7aaf7ba1ce83584c9a2d69cbea2ce53, type: 3}
+  - {fileID: 21300000, guid: f062d54cadfcd1b40a0bb5da123e2ee0, type: 3}
+  - {fileID: 21300000, guid: 7cd4b7a60efc5d04b96ddabf03eb99b8, type: 3}
+  sellPrice: 22

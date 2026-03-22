@@ -63,8 +63,25 @@ namespace PolyAndCode.UI
             yield return null;
             SetRecyclingBounds();
 
-            //Cell Poool
+            // Pre-cleanup: deactivate existing pool cells so their Graphics
+            // unregister from the Canvas rebuild queue before we destroy & recreate.
+            // This prevents the "graphic rebuild loop" error caused by
+            // destroy-pending old cells and new cells coexisting in the same
+            // Canvas rebuild batch.
+            if (_cellPool != null && _cellPool.Count > 0)
+            {
+                for (int i = 0; i < _cellPool.Count; i++)
+                {
+                    if (_cellPool[i] != null)
+                        _cellPool[i].gameObject.SetActive(false);
+                }
+                yield return null;
+            }
+
+            //Cell Pool
             CreateCellPool();
+            yield return null;
+
             currentItemCount = _cellPool.Count;
             topMostCellIndex = 0;
             bottomMostCellIndex = _cellPool.Count - 1;
@@ -107,7 +124,7 @@ namespace PolyAndCode.UI
                 _cellPool = new List<RectTransform>();
             }
 
-            //Set the prototype cell active and set cell anchor as top 
+            //Set the prototype cell active and set cell anchor as top
             PrototypeCell.gameObject.SetActive(true);
             if (IsGrid)
             {

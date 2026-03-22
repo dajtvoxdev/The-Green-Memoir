@@ -58,12 +58,13 @@ public class FirebaseTransactionManager : MonoBehaviour
     public async Task<FirebaseResponse<bool>> WriteWithRetry(string path, string data, int maxRetries = 3)
     {
         float delay = InitialDelay;
+        string jsonPayload = FirebaseJsonUtility.PrepareForWrite(data);
 
         for (int attempt = 0; attempt < maxRetries; attempt++)
         {
             try
             {
-                var task = reference.Child(path).SetValueAsync(data);
+                var task = reference.Child(path).SetRawJsonValueAsync(jsonPayload);
                 await task;
 
                 if (task.IsCompleted && !task.IsFaulted)
@@ -107,7 +108,8 @@ public class FirebaseTransactionManager : MonoBehaviour
                     DataSnapshot snapshot = task.Result;
                     if (snapshot.Value != null)
                     {
-                        T data = ConvertValue<T>(snapshot.Value);
+                        string rawJson = FirebaseJsonUtility.NormalizeReadValue(snapshot.GetRawJsonValue());
+                        T data = ConvertValue<T>(rawJson);
                         Debug.Log($"FirebaseTransaction: Read succeeded from {path} (attempt {attempt + 1})");
                         return FirebaseResponse<T>.Ok(data);
                     }
@@ -147,7 +149,7 @@ public class FirebaseTransactionManager : MonoBehaviour
             {
                 var transactionTask = reference.Child(path).RunTransaction(mutableData =>
                 {
-                    string currentJson = mutableData.Value?.ToString() ?? "";
+                    string currentJson = FirebaseJsonUtility.ConvertValueToJson(mutableData.Value);
                     string newJson = updateFunc(currentJson);
 
                     if (newJson == null)
@@ -206,11 +208,11 @@ public class FirebaseTransactionManager : MonoBehaviour
             return FirebaseResponse<bool>.Fail("Invalid user or userId");
         }
 
-        string path = $"Users/{userId}";
+        string path = FirebaseUserPaths.GetUserProfilePath(userId);
 
         var result = await RunAtomicTransaction(path, currentJson =>
         {
-            if (string.IsNullOrEmpty(currentJson) || currentJson == "{}")
+            if (string.IsNullOrEmpty(currentJson) || currentJson == "null" || currentJson == "{}")
             {
                 // No existing data — first save, set version to 1
                 localUser.Version = 1;
@@ -245,7 +247,7 @@ public class FirebaseTransactionManager : MonoBehaviour
         }
         else
         {
-            NotificationManager.Instance?.ShowNotification("Save conflict! Please reload.", 3f);
+            NotificationManager.Instance?.ShowNotification("Xung đột dữ liệu! Vui lòng tải lại.", 3f);
         }
 
         return result;
@@ -328,6 +330,21 @@ public class FirebaseTransactionManager : MonoBehaviour
         if (value == null)
         {
             return default(T);
+        }
+
+        if (value is string stringValue)
+        {
+            if (typeof(T) == typeof(string))
+            {
+                return (T)(object)FirebaseJsonUtility.NormalizeReadValue(stringValue);
+            }
+
+            return JsonConvert.DeserializeObject<T>(FirebaseJsonUtility.NormalizeReadValue(stringValue));
+        }
+
+        if (typeof(T) == typeof(string))
+        {
+            return (T)(object)JsonConvert.SerializeObject(value);
         }
 
         Type targetType = typeof(T);

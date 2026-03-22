@@ -1,0 +1,16 @@
+=== TILEMAP DIAGNOSIS ===
+Found 3 tilemaps in scene
+
+Tilemap_Grass: tiles=322, bounds=(-13,-5) to (15,9)
+Tilemap_Water: tiles=1316, bounds=(-23,-12) to (24,16)
+Tilemap_Path: tiles=170, bounds=(-12,-2) to (14,8)
+
+=== WALK ANIMATION CLIPS ===
+Walk_south: spriteKeys=6, loop=True, path='' prop='m_Sprite' type=SpriteRenderer
+Walk_north: spriteKeys=6, loop=True, path='' prop='m_Sprite' type=SpriteRenderer
+Walk_east: spriteKeys=6, loop=True, path='' prop='m_Sprite' type=SpriteRenderer
+Walk_west: spriteKeys=6, loop=True, path='' prop='m_Sprite' type=SpriteRenderer
+Walk_south-east: spriteKeys=6, loop=True, path='' prop='m_Sprite' type=SpriteRenderer
+Walk_south-west: spriteKeys=6, loop=True, path='' prop='m_Sprite' type=SpriteRenderer
+Walk_north-east: spriteKeys=6, loop=True, path='' prop='m_Sprite' type=SpriteRenderer
+Walk_north-west: spriteKeys=6, loop=True, path='' prop='m_Sprite' type=SpriteRenderer

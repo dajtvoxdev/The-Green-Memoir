@@ -27,7 +27,7 @@ public class VietnameseFarmerSetup : EditorWindow
         "picking-up",
         "custom-A Vietnamese farmer digging soil using a farming h",
         "custom-Vietnamese farmer planting seeds by bending slight",
-        "custom-Vietnamese farmer watering crops using a watering ",
+        "custom-Vietnamese farmer watering crops using a watering",
         "custom-Vietnamese farmer harvesting crops by bending down"
     };
     
@@ -194,7 +194,7 @@ public class VietnameseFarmerSetup : EditorWindow
             case "picking-up": return "PickUp";
             case "custom-A Vietnamese farmer digging soil using a farming h": return "Dig";
             case "custom-Vietnamese farmer planting seeds by bending slight": return "Plant";
-            case "custom-Vietnamese farmer watering crops using a watering ": return "Water";
+            case "custom-Vietnamese farmer watering crops using a watering": return "Water";
             case "custom-Vietnamese farmer harvesting crops by bending down": return "Harvest";
             default: return action.Replace("custom-", "").Replace(" ", "_");
         }
@@ -298,20 +298,11 @@ public class VietnameseFarmerSetup : EditorWindow
             var walkToIdle = walkState.AddTransition(idleState);
             walkToIdle.hasExitTime = false;
             walkToIdle.duration = 0.1f;
-            walkToIdle.AddCondition(AnimatorConditionMode.Less, 0, "Speed");
+            walkToIdle.AddCondition(AnimatorConditionMode.Less, 0.01f, "Speed");
             
-            // Direction changes for idle
+            // Walk direction changes: transition to other walk directions when Speed > 0
             foreach (string otherDir in DIRECTIONS)
             {
-                if (otherDir != direction)
-                {
-                    AnimatorState otherIdle = stateDict["breathing-idle"][otherDir];
-                    var dirTransition = idleState.AddTransition(otherIdle);
-                    dirTransition.hasExitTime = false;
-                    dirTransition.duration = 0.05f;
-                    // Direction change handled by Horizontal/Vertical parameters
-                }
-                
                 if (otherDir != direction)
                 {
                     AnimatorState otherWalk = stateDict["walking-6-frames"][otherDir];
@@ -325,7 +316,7 @@ public class VietnameseFarmerSetup : EditorWindow
             // Action transitions (PickUp, Dig, Plant, Water, Harvest)
             string[] actions = { "picking-up", "custom-A Vietnamese farmer digging soil using a farming h", 
                                  "custom-Vietnamese farmer planting seeds by bending slight",
-                                 "custom-Vietnamese farmer watering crops using a watering ",
+                                 "custom-Vietnamese farmer watering crops using a watering",
                                  "custom-Vietnamese farmer harvesting crops by bending down" };
             string[] triggers = { "PickUp", "Dig", "Plant", "Water", "Harvest" };
             

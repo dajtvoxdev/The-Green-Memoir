@@ -136,7 +136,8 @@ public class InventoryActionPanel : MonoBehaviour
     }
 
     /// <summary>
-    /// Use action: consume item or plant seed.
+    /// Use action: consume item or equip seed for planting.
+    /// Phase 2.5B Fix (BP1): Seeds now pass their specific cropId to EquipmentManager.
     /// </summary>
     private void OnUseClicked()
     {
@@ -146,21 +147,10 @@ public class InventoryActionPanel : MonoBehaviour
 
         if (type == "seed")
         {
-            // Equip as seed bag for planting
-            if (EquipmentManager.Instance != null)
-            {
-                ToolDefinition seedTool = EquipmentManager.Instance.GetStarterTool(ToolType.SeedBag);
-                if (seedTool != null)
-                {
-                    EquipmentManager.Instance.EquipTool(seedTool);
-                    NotificationManager.Instance?.ShowNotification(
-                        LocalizationManager.LocalizeText($"Ready to plant {selectedItem.name}!"), 1.5f);
-                }
-            }
+            EquipSeedFromInventory(selectedItem);
         }
         else if (type == "consumable")
         {
-            // Consume one unit
             RemoveQuantity(1);
             NotificationManager.Instance?.ShowNotification(
                 LocalizationManager.LocalizeText($"Used {selectedItem.name}."), 1.5f);
@@ -169,6 +159,53 @@ public class InventoryActionPanel : MonoBehaviour
 
         OnInventoryAction?.Invoke();
         Hide();
+    }
+
+    /// <summary>
+    /// Equips a seed item for planting by finding or creating a matching SeedBag tool.
+    /// Resolves BP1: Inventory seed → EquipmentManager with correct cropId.
+    /// </summary>
+    private void EquipSeedFromInventory(InvenItems seedItem)
+    {
+        if (EquipmentManager.Instance == null) return;
+
+        // First try to find an existing SeedBag tool that matches this seed's cropId
+        string targetCropId = seedItem.itemId; // Seeds use itemId as cropId link
+        ToolDefinition matchingTool = null;
+
+        if (EquipmentManager.Instance.starterTools != null)
+        {
+            foreach (var tool in EquipmentManager.Instance.starterTools)
+            {
+                if (tool != null && tool.toolType == ToolType.SeedBag && tool.cropId == targetCropId)
+                {
+                    matchingTool = tool;
+                    break;
+                }
+            }
+        }
+
+        if (matchingTool != null)
+        {
+            EquipmentManager.Instance.EquipTool(matchingTool);
+        }
+        else
+        {
+            // Create a runtime SeedBag tool for this specific seed
+            var runtimeTool = ScriptableObject.CreateInstance<ToolDefinition>();
+            runtimeTool.toolId = $"seedbag_{seedItem.itemId}";
+            runtimeTool.toolName = $"{seedItem.name} Bag";
+            runtimeTool.description = $"Plant {seedItem.name}";
+            runtimeTool.toolType = ToolType.SeedBag;
+            runtimeTool.cropId = targetCropId;
+            runtimeTool.tier = 1;
+
+            EquipmentManager.Instance.EquipTool(runtimeTool);
+        }
+
+        NotificationManager.Instance?.ShowNotification(
+            LocalizationManager.LocalizeText($"Ready to plant {seedItem.name}! Press E or V to plant."), 2f);
+        AudioManager.Instance?.PlaySFX("equip");
     }
 
     /// <summary>

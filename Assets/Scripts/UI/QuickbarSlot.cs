@@ -1,14 +1,16 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 
 /// <summary>
 /// A single slot in the Quickbar UI.
 /// Displays tool icon, key binding number, and selected highlight.
+/// Click to equip the assigned tool.
 ///
 /// Phase 2 Feature (#27): Quickbar visual slot.
 /// </summary>
-public class QuickbarSlot : MonoBehaviour
+public class QuickbarSlot : MonoBehaviour, IPointerClickHandler
 {
     [Header("UI References")]
     [Tooltip("Image showing the tool icon.")]
@@ -115,6 +117,17 @@ public class QuickbarSlot : MonoBehaviour
         else
         {
             SetBackgroundColor(emptyColor);
+        }
+    }
+
+    /// <summary>
+    /// Handles click on this slot to equip the assigned tool.
+    /// </summary>
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (AssignedTool != null && EquipmentManager.Instance != null)
+        {
+            EquipmentManager.Instance.EquipTool(AssignedTool);
         }
     }
 

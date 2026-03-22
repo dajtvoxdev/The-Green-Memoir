@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02d4620e9c0fa974c8f84c263c3d360f, type: 3}
+  m_Name: crop_bean
+  m_EditorClassIdentifier: Assembly-CSharp::CropDefinition
+  cropId: bean
+  cropName: "\u0110\u1EADu"
+  description: "\u0110\u1EADu xanh d\u1EC5 tr\u1ED3ng. C\xE2y kh\u1EDFi \u0111\u1EA7u
+    ho\xE0n h\u1EA3o."
+  seedItemId: seed_bean
+  harvestItemId: crop_bean
+  stageDurations:
+  - 15
+  - 20
+  - 20
+  - 15
+  requiresWater: 1
+  witherTime: 0
+  yieldMin: 3
+  yieldMax: 5
+  regrowable: 0
+  regrowToStage: 2
+  stageSprites:
+  - {fileID: 21300000, guid: a663bd4edb72bcf4886ac75761e60d02, type: 3}
+  - {fileID: 21300000, guid: 02785c157d91fb543bcc18ae2d0513fe, type: 3}
+  - {fileID: 21300000, guid: 47599dbc44706534593b1b2391a84028, type: 3}
+  - {fileID: 21300000, guid: 6e628bc9633ff87489c51383411a187b, type: 3}
+  - {fileID: 21300000, guid: 7e81fb5dbdd1af94db89be848528c55e, type: 3}
+  sellPrice: 10

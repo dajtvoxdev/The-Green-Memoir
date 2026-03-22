@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using UnityEngine.UI;
 
 /// <summary>
 /// HUD element that displays the in-game time and day count.
@@ -18,6 +19,16 @@ public class TimeHUD : MonoBehaviour
 
     [Tooltip("Text showing current period (e.g., 'Morning').")]
     public TMP_Text periodText;
+
+    [Header("Weather Icon")]
+    [Tooltip("Icon image to display weather/time of day")]
+    public Image weatherIcon;
+
+    [Tooltip("Sprite for daytime (sun)")]
+    public Sprite sunSprite;
+
+    [Tooltip("Sprite for nighttime (moon)")]
+    public Sprite moonSprite;
 
     [Header("Settings")]
     [Tooltip("Use 24-hour format (14:30) vs 12-hour (2:30 PM).")]
@@ -67,6 +78,35 @@ public class TimeHUD : MonoBehaviour
         {
             periodText.text = LocalizationManager.LocalizeText(GetPeriodDisplay(time.CurrentPeriod));
             periodText.color = GetPeriodColor(time.CurrentPeriod);
+        }
+
+        // Update weather icon based on time of day
+        UpdateWeatherIcon(time.CurrentPeriod);
+    }
+
+    /// <summary>
+    /// Updates the weather icon sprite based on time period (day/night).
+    /// </summary>
+    private void UpdateWeatherIcon(GameTimeManager.TimePeriod period)
+    {
+        if (weatherIcon == null) return;
+
+        switch (period)
+        {
+            case GameTimeManager.TimePeriod.Dawn:
+            case GameTimeManager.TimePeriod.Morning:
+            case GameTimeManager.TimePeriod.Afternoon:
+                // Daytime - use sun
+                if (sunSprite != null && weatherIcon.sprite != sunSprite)
+                    weatherIcon.sprite = sunSprite;
+                break;
+
+            case GameTimeManager.TimePeriod.Evening:
+            case GameTimeManager.TimePeriod.Night:
+                // Nighttime - use moon
+                if (moonSprite != null && weatherIcon.sprite != moonSprite)
+                    weatherIcon.sprite = moonSprite;
+                break;
         }
     }
 

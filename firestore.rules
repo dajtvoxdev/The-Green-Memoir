@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== Web Users =====
+    // Users can read their own profile. Only Admin SDK can write.
+    match /webUsers/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // Only Admin SDK (server-side)
+    }
+
+    // ===== Orders =====
+    // Users can read their own orders. Only Admin SDK can create/update.
+    match /orders/{orderId} {
+      allow read: if request.auth != null
+                  && resource.data.userId == request.auth.uid;
+      allow write: if false; // Only Admin SDK (server-side)
+    }
+
+    // ===== Download Tokens =====
+    // No client-side access needed. All operations through Admin SDK.
+    match /downloadTokens/{tokenId} {
+      allow read, write: if false;
+    }
+
+    // ===== Game Versions =====
+    // Public read (landing page shows version info). Only Admin SDK can write.
+    match /gameVersions/{versionId} {
+      allow read: if true;
+      allow write: if false; // Only Admin SDK (server-side)
+    }
+
+    // ===== Site Stats =====
+    // No client-side access needed.
+    match /siteStats/{date} {
+      allow read, write: if false;
+    }
+
+    // Deny everything else by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

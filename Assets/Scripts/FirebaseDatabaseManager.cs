@@ -39,7 +39,9 @@ public class FirebaseDatabaseManager : MonoBehaviour
     /// <param name="onComplete">Callback with success status and error message</param>
     public void WriteDatabase(string path, string data, Action<bool, string> onComplete = null)
     {
-        reference.Child(path).SetValueAsync(data).ContinueWithOnMainThread(task =>
+        string jsonPayload = FirebaseJsonUtility.PrepareForWrite(data);
+
+        reference.Child(path).SetRawJsonValueAsync(jsonPayload).ContinueWithOnMainThread(task =>
         {
             if (task.IsCompleted && !task.IsFaulted)
             {
@@ -67,7 +69,9 @@ public class FirebaseDatabaseManager : MonoBehaviour
             if (task.IsCompleted && !task.IsFaulted && task.Result != null)
             {
                 DataSnapshot snapshot = task.Result;
-                string value = snapshot.Value?.ToString();
+                string value = snapshot.Value == null
+                    ? null
+                    : FirebaseJsonUtility.NormalizeReadValue(snapshot.GetRawJsonValue());
                 Debug.Log($"Firebase: Read success from path: {path}");
                 onComplete?.Invoke(value);
             }

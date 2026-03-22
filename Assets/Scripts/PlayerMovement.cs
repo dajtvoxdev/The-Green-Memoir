@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
 /// <summary>
 /// Handles player movement with proper diagonal normalization for Vietnamese Farmer character.
@@ -9,11 +10,15 @@ public class PlayerMovement : MonoBehaviour
 {
     public Rigidbody2D rb;
     public float speed = 5f;
-    
+
     private Vector2 movement;
     private Vector2 lastMovement;
 
     public Animator animator;
+
+    [Header("Water Blocking")]
+    [Tooltip("Water tilemap — keyboard movement is also blocked on water tiles")]
+    public Tilemap waterTilemap;
     
     // Action triggers
     private bool triggerPickUp;
@@ -85,7 +90,17 @@ public class PlayerMovement : MonoBehaviour
         // Only move if keyboard has input (don't interfere with mouse movement)
         if (movement.sqrMagnitude > 0.01f)
         {
-            rb.MovePosition(rb.position + movement * speed * Time.fixedDeltaTime);
+            Vector2 nextPos = rb.position + movement * speed * Time.fixedDeltaTime;
+
+            // Block movement onto water tiles
+            if (waterTilemap != null)
+            {
+                Vector3Int cell = waterTilemap.WorldToCell(new Vector3(nextPos.x, nextPos.y, 0));
+                if (waterTilemap.HasTile(cell))
+                    return; // Don't move onto water
+            }
+
+            rb.MovePosition(nextPos);
         }
     }
     

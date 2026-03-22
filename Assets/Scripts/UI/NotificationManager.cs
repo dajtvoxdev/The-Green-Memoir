@@ -4,13 +4,14 @@ using TMPro;
 
 /// <summary>
 /// Shows temporary toast notifications at the top of the screen.
-/// Used for harvest results, errors, time events, etc.
+/// Uses CanvasGroup alpha for visibility instead of SetActive to avoid
+/// Canvas rebuild errors when triggered from UI event handlers.
 ///
 /// Phase 2 Feature (#13): Popup/notification system.
 ///
 /// Usage:
-///   NotificationManager.Instance.ShowNotification("Harvested 3x Tomato!");
-///   NotificationManager.Instance.ShowNotification("Day 2 started!", 3f);
+///   NotificationManager.Instance.ShowNotification("Đã mua 1x Cà Chua!");
+///   NotificationManager.Instance.ShowNotification("Ngày 2 bắt đầu!", 3f);
 /// </summary>
 public class NotificationManager : MonoBehaviour
 {
@@ -47,20 +48,35 @@ public class NotificationManager : MonoBehaviour
             Destroy(gameObject);
             return;
         }
+
+        EnsureCanvasGroup();
     }
 
     void Start()
     {
-        if (notificationPanel != null)
+        EnsureCanvasGroup();
+    }
+
+    /// <summary>
+    /// Lazily initializes the CanvasGroup — safe to call multiple times.
+    /// Keeps the panel always active but invisible via alpha=0 + blocksRaycasts=false.
+    /// </summary>
+    private void EnsureCanvasGroup()
+    {
+        if (canvasGroup != null || notificationPanel == null) return;
+
+        canvasGroup = notificationPanel.GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
         {
-            canvasGroup = notificationPanel.GetComponent<CanvasGroup>();
-            if (canvasGroup == null)
-            {
-                canvasGroup = notificationPanel.AddComponent<CanvasGroup>();
-            }
-            canvasGroup.alpha = 0f;
-            notificationPanel.SetActive(false);
+            canvasGroup = notificationPanel.AddComponent<CanvasGroup>();
         }
+
+        // Keep panel always active — control visibility via CanvasGroup only.
+        // This avoids "graphic rebuild while inside a graphic rebuild loop" errors.
+        notificationPanel.SetActive(true);
+        canvasGroup.alpha = 0f;
+        canvasGroup.blocksRaycasts = false;
+        canvasGroup.interactable = false;
     }
 
     /// <summary>
@@ -73,6 +89,8 @@ public class NotificationManager : MonoBehaviour
             Debug.Log($"[Notification] {message}");
             return;
         }
+
+        EnsureCanvasGroup();
 
         if (duration <= 0f) duration = defaultDuration;
 
@@ -87,11 +105,14 @@ public class NotificationManager : MonoBehaviour
 
     private IEnumerator ShowNotificationCoroutine(string message, float duration)
     {
-        // Show
+        EnsureCanvasGroup();
+        if (canvasGroup == null) yield break;
+
+        // Set text (panel is already active, just invisible)
         notificationText.text = message;
-        notificationPanel.SetActive(true);
 
         // Fade in
+        canvasGroup.blocksRaycasts = false;
         while (canvasGroup.alpha < 1f)
         {
             canvasGroup.alpha += Time.unscaledDeltaTime * fadeSpeed;
@@ -109,7 +130,6 @@ public class NotificationManager : MonoBehaviour
             yield return null;
         }
         canvasGroup.alpha = 0f;
-        notificationPanel.SetActive(false);
 
         activeNotification = null;
     }

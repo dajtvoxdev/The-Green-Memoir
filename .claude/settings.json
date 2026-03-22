@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash /tmp/unity_mcp.sh '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":3,\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"manage_components\"\",\"\"arguments\"\":{\"\"action\"\":\"\"set_property\"\",\"\"target\"\":\"\"Player \"\",\"\"component_type\"\":\"\"UnityEngine.SpriteRenderer\"\",\"\"properties\"\":{\"\"sprite\"\":\"\"A_Vietnamese_farmer_from_the_countryside_standing/rotations/south/A_Vietnamese_farmer_from_the_countryside_standing-south\"\"}}}}')",
+      "Bash(bash /tmp/unity_mcp.sh '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":3,\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"manage_asset\"\",\"\"arguments\"\":{\"\"action\"\":\"\"search\"\",\"\"search_pattern\"\":\"\"Vietnamese_farmer\"\",\"\"asset_type\"\":\"\"Sprite\"\",\"\"page_size\"\":5}}}')",
+      "Bash(bash /tmp/unity_mcp.sh '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":3,\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"manage_asset\"\",\"\"arguments\"\":{\"\"action\"\":\"\"search\"\",\"\"path\"\":\"\"Assets\"\",\"\"search_pattern\"\":\"\"Vietnamese_farmer\"\",\"\"asset_type\"\":\"\"Sprite\"\",\"\"page_size\"\":5}}}')",
+      "Bash(bash /tmp/unity_mcp.sh '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":3,\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"manage_asset\"\",\"\"arguments\"\":{\"\"action\"\":\"\"search\"\",\"\"path\"\":\"\"Assets\"\",\"\"search_pattern\"\":\"\"farmer\"\",\"\"asset_type\"\":\"\"Texture2D\"\",\"\"page_size\"\":10}}}')",
+      "Bash(bash /tmp/unity_mcp.sh '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":3,\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"manage_asset\"\",\"\"arguments\"\":{\"\"action\"\":\"\"search\"\",\"\"path\"\":\"\"Assets\"\",\"\"search_pattern\"\":\"\"countryside\"\",\"\"page_size\"\":10}}}')",
+      "Bash(bash /tmp/unity_mcp.sh '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":3,\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"manage_components\"\",\"\"arguments\"\":{\"\"action\"\":\"\"set_property\"\",\"\"target\"\":\"\"Player \"\",\"\"component_type\"\":\"\"UnityEngine.SpriteRenderer\"\",\"\"properties\"\":{\"\"sprite\"\":\"\"Assets/A_Vietnamese_farmer_from_the_countryside_standing/rotations/south.png\"\"}}}}')"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

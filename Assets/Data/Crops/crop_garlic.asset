@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02d4620e9c0fa974c8f84c263c3d360f, type: 3}
+  m_Name: crop_garlic
+  m_EditorClassIdentifier: Assembly-CSharp::CropDefinition
+  cropId: garlic
+  cropName: "T\u1ECFi"
+  description: "T\u1ECFi th\u01A1m cay. Gia v\u1ECB qu\xFD."
+  seedItemId: seed_garlic
+  harvestItemId: crop_garlic
+  stageDurations:
+  - 75
+  - 90
+  - 90
+  - 85
+  requiresWater: 1
+  witherTime: 0
+  yieldMin: 2
+  yieldMax: 4
+  regrowable: 0
+  regrowToStage: 2
+  stageSprites:
+  - {fileID: 21300000, guid: 24d743f7f3846964a8b47f82a2e7d945, type: 3}
+  - {fileID: 21300000, guid: d4754d4bf4ad09646866bb5fe8283221, type: 3}
+  - {fileID: 21300000, guid: 2c4ca513ba82c5f47a75b825f2c2d883, type: 3}
+  - {fileID: 21300000, guid: 56c68cd5a5b3f4d47a96052a5e11f97d, type: 3}
+  - {fileID: 21300000, guid: 615daf0befb80184cb7e9c1a2c80cdc6, type: 3}
+  sellPrice: 55

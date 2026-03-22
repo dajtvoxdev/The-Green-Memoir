@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "pixellab": {
+      "command": "npx",
+      "args": [
+        "mcp-remote@latest",
+        "https://api.pixellab.ai/mcp",
+        "--transport",
+        "http-only",
+        "--header",
+        "Authorization:${AUTH_HEADER}"
+      ],
+      "env": {
+        "AUTH_HEADER": "Bearer 0ea5c605-96b6-4c66-ad58-b5c0319934c5"
+      }
+    },
+    "unityMCP": {
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp"
+    },
+    "unity_mcp_pro": {
+      "command": "node",
+      "args": ["D:/server/build/index.js"]
+    }
+  }
+}

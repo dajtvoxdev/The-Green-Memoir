@@ -30,7 +30,6 @@
 Thumbs.db
 
 # Claude Code (entire folder)
-.claude/
 
 # Unity auto-generated
 *.pidb

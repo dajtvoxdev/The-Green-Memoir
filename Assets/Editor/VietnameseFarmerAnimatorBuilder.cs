@@ -25,7 +25,7 @@ public class VietnameseFarmerAnimatorBuilder : EditorWindow
         "picking-up",          // PickUp
         "custom-A Vietnamese farmer digging soil using a farming h", // Dig
         "custom-Vietnamese farmer planting seeds by bending slight", // Plant
-        "custom-Vietnamese farmer watering crops using a watering ", // Water
+        "custom-Vietnamese farmer watering crops using a watering", // Water
         "custom-Vietnamese farmer harvesting crops by bending down"  // Harvest
     };
     
@@ -138,7 +138,7 @@ public class VietnameseFarmerAnimatorBuilder : EditorWindow
             case "picking-up": return "PickUp";
             case "custom-A Vietnamese farmer digging soil using a farming h": return "Dig";
             case "custom-Vietnamese farmer planting seeds by bending slight": return "Plant";
-            case "custom-Vietnamese farmer watering crops using a watering ": return "Water";
+            case "custom-Vietnamese farmer watering crops using a watering": return "Water";
             case "custom-Vietnamese farmer harvesting crops by bending down": return "Harvest";
             default: return action.Replace("custom-", "").Replace(" ", "_");
         }
@@ -305,7 +305,7 @@ public class VietnameseFarmerAnimatorBuilder : EditorWindow
         }
         else if (condition.Contains("Speed <"))
         {
-            transition.AddCondition(AnimatorConditionMode.Less, 0, "Speed");
+            transition.AddCondition(AnimatorConditionMode.Less, 0.01f, "Speed");
         }
         // Add more condition parsing as needed
     }

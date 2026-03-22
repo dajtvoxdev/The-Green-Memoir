@@ -250,6 +250,8 @@ public class QuickbarUI : MonoBehaviour
 
     /// <summary>
     /// Handles tool change events — highlights the matching slot.
+    /// First tries exact reference match; falls back to ToolType match for
+    /// runtime-created tools (e.g. SeedBag created dynamically from inventory).
     /// </summary>
     private void OnToolChanged(ToolDefinition tool)
     {
@@ -263,14 +265,25 @@ public class QuickbarUI : MonoBehaviour
 
         if (tool == null) return;
 
-        // Find and select the matching slot
+        // Pass 1: exact reference match (starterTools)
         for (int i = 0; i < slots.Count; i++)
         {
             if (slots[i].AssignedTool == tool)
             {
                 activeSlotIndex = i;
                 slots[i].SetSelected(true);
-                break;
+                return;
+            }
+        }
+
+        // Pass 2: ToolType fallback for runtime tools (e.g. SeedBag from inventory)
+        for (int i = 0; i < slots.Count; i++)
+        {
+            if (slots[i].AssignedTool != null && slots[i].AssignedTool.toolType == tool.toolType)
+            {
+                activeSlotIndex = i;
+                slots[i].SetSelected(true);
+                return;
             }
         }
     }

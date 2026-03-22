@@ -57,37 +57,11 @@ public class EquipmentManager : MonoBehaviour
         }
     }
 
-    void Start()
-    {
-        // Equip the first starter tool by default (typically Hoe)
-        if (currentTool == null && starterTools != null && starterTools.Length > 0)
-        {
-            EquipTool(starterTools[0]);
-        }
-    }
+    // Farming is context-sensitive (right-click auto-detects action).
+    // No need to auto-equip a tool at startup.
 
-    void Update()
-    {
-        HandleToolSwitchInput();
-    }
-
-    /// <summary>
-    /// Handles number key input for quick tool switching.
-    /// Keys 1-6 map to starterTools array indices.
-    /// </summary>
-    private void HandleToolSwitchInput()
-    {
-        if (starterTools == null) return;
-
-        for (int i = 0; i < Mathf.Min(starterTools.Length, 6); i++)
-        {
-            if (Input.GetKeyDown(KeyCode.Alpha1 + i))
-            {
-                EquipTool(starterTools[i]);
-                break;
-            }
-        }
-    }
+    // Keys 1-9 are reserved for seed selection (SeedQuickbarUI).
+    // Tools are selected by clicking the quickbar UI slots.
 
     /// <summary>
     /// Equips a tool.

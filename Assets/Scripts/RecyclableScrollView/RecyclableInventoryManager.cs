@@ -1,13 +1,22 @@
 using PolyAndCode.UI;
+using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
 /// Manages the recyclable inventory scroll view with item stacking support.
 /// Phase 1 Feature (#16): Item stacking system with quantity management.
+/// Phase 2.5E Fix (BP3): Firebase persistence for inventory data.
 /// </summary>
 public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDataSource
 {
+    /// <summary>
+    /// Fired whenever inventory contents change (add/remove/quantity update).
+    /// Used by SeedQuickbarUI to refresh seed slots.
+    /// </summary>
+    public event Action OnInventoryChanged;
     [SerializeField]
     RecyclableScrollRect _recyclableScrollRect;
 
@@ -15,24 +24,80 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
     private int _dataLength;
 
     public GameObject inventoryGameObject;
-    
+
+    // CanvasGroup used to show/hide inventory without deactivating the GameObject
+    // (deactivating stops the RecyclableScrollRect coroutine)
+    private CanvasGroup _inventoryCanvasGroup;
+
     [Header("Inventory Settings")]
     [Tooltip("Maximum number of inventory slots")]
     public int maxInventorySlots = 20;
 
     // Inventory data with stacking support
     private List<InvenItems> _invenItems = new List<InvenItems>();
-    
+
     // Cache of ItemDefinitions for quick lookup
     private Dictionary<string, ItemDefinition> _itemDefinitionCache = new Dictionary<string, ItemDefinition>();
-    
+
     // Default max stack size for items without ItemDefinition
     private const int DefaultMaxStack = 99;
 
-    //Recyclable scroll rect's data source must be assigned in Awake.
+    // Phase 2.5E: Batched save to prevent rapid Firebase writes
+    private float pendingSaveTimer;
+    private bool hasPendingSave;
+    private const float SAVE_BATCH_DELAY = 1.5f;
+
+    // Deferred reload: prevents Canvas rebuild conflicts when modifying UI hierarchy
+    private bool _reloadPending;
+    private Coroutine _reloadCoroutine;
+
+    // Recyclable scroll rect's data source must be assigned in Awake.
+    // Initialize() is also called here so the RecyclableScroll GO is guaranteed active.
     private void Awake()
     {
+        if (_recyclableScrollRect == null)
+        {
+            Debug.LogError("RecyclableInventoryManager: _recyclableScrollRect is not assigned! Please assign it in the Inspector.");
+            return;
+        }
         _recyclableScrollRect.DataSource = this;
+
+        // Set up CanvasGroup-based visibility (keeps GO active for coroutines)
+        if (inventoryGameObject != null)
+        {
+            _inventoryCanvasGroup = inventoryGameObject.GetComponent<CanvasGroup>();
+            if (_inventoryCanvasGroup == null)
+                _inventoryCanvasGroup = inventoryGameObject.AddComponent<CanvasGroup>();
+            SetInventoryVisible(false);
+        }
+
+        // Defer Initialize to avoid canvas rebuild conflicts during scene load.
+        StartCoroutine(DeferredInitialize());
+    }
+
+    private System.Collections.IEnumerator DeferredInitialize()
+    {
+        yield return new WaitForEndOfFrame();
+
+        // Remove VerticalLayoutGroup and ContentSizeFitter from scroll content
+        // if present.  The RecyclableScrollRect library manages cell layout
+        // manually via anchoredPosition and Content.sizeDelta.  Having Unity's
+        // layout system on the same Content causes cascading
+        // OnRectTransformDimensionsChange → SetAllDirty →
+        // RegisterCanvasElementForGraphicRebuild during the Canvas graphic
+        // rebuild pass, producing "graphic rebuild loop" errors.
+        if (_recyclableScrollRect != null && _recyclableScrollRect.content != null)
+        {
+            var scrollContent = _recyclableScrollRect.content;
+
+            var layoutGroup = scrollContent.GetComponent<LayoutGroup>();
+            if (layoutGroup != null) Destroy(layoutGroup);
+
+            var sizeFitter = scrollContent.GetComponent<ContentSizeFitter>();
+            if (sizeFitter != null) Destroy(sizeFitter);
+        }
+
+        _recyclableScrollRect?.Initialize(this);
     }
     
     /// <summary>
@@ -59,18 +124,48 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
 
     private void Start()
     {
-        // Phase 1: Removed dummy data generation
-        // Inventory should be loaded from Firebase/LoadDataManager instead
-        Debug.Log("RecyclableInventoryManager: Initialized with empty inventory");
+        LoadInventoryFromFirebase(success =>
+        {
+            if (!success)
+                Debug.Log("RecyclableInventoryManager: No saved inventory found, starting fresh.");
+
+            GiveStarterPackIfNew();
+        });
     }
-    
+
+    /// <summary>
+    /// Schedules a deferred ReloadData to avoid Canvas rebuild conflicts.
+    /// Multiple calls per frame are batched into a single reload.
+    /// </summary>
+    private void ScheduleReload()
+    {
+        if (_reloadPending) return;
+        _reloadPending = true;
+
+        if (_reloadCoroutine != null)
+            StopCoroutine(_reloadCoroutine);
+
+        _reloadCoroutine = StartCoroutine(DeferredReload());
+    }
+
+    private System.Collections.IEnumerator DeferredReload()
+    {
+        // Wait one frame to batch rapid inventory changes into a single reload.
+        yield return null;
+        _reloadPending = false;
+        _reloadCoroutine = null;
+
+        _recyclableScrollRect?.ReloadData();
+        OnInventoryChanged?.Invoke();
+    }
+
     /// <summary>
     /// Loads inventory items from a list (called from LoadDataManager after Firebase load).
     /// </summary>
     public void SetLstItem(List<InvenItems> lst)
     {
         _invenItems = lst ?? new List<InvenItems>();
-        _recyclableScrollRect?.ReloadData();
+        ScheduleReload();
     }
     
     /// <summary>
@@ -88,46 +183,50 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
         {
             ToggleInventory();
         }
-        
+
         // Debug: Add test item with L key
         if (Input.GetKeyDown(KeyCode.L))
         {
             AddTestItem();
         }
+
+        // Phase 2.5E: Batched save timer
+        if (hasPendingSave)
+        {
+            pendingSaveTimer -= Time.deltaTime;
+            if (pendingSaveTimer <= 0f)
+            {
+                hasPendingSave = false;
+                SaveInventoryToFirebase();
+            }
+        }
     }
     
     /// <summary>
-    /// Toggles the inventory UI visibility.
-    /// Phase 1: Uses SetActive instead of Y position hack.
+    /// Toggles the inventory UI visibility via CanvasGroup (keeps GO active for coroutines).
     /// </summary>
     public void ToggleInventory()
     {
-        if (inventoryGameObject != null)
-        {
-            inventoryGameObject.SetActive(!inventoryGameObject.activeSelf);
-        }
+        bool isVisible = _inventoryCanvasGroup != null && _inventoryCanvasGroup.alpha > 0f;
+        SetInventoryVisible(!isVisible);
     }
-    
+
     /// <summary>
     /// Shows the inventory UI.
     /// </summary>
-    public void ShowInventory()
-    {
-        if (inventoryGameObject != null)
-        {
-            inventoryGameObject.SetActive(true);
-        }
-    }
-    
+    public void ShowInventory() => SetInventoryVisible(true);
+
     /// <summary>
     /// Hides the inventory UI.
     /// </summary>
-    public void HideInventory()
+    public void HideInventory() => SetInventoryVisible(false);
+
+    private void SetInventoryVisible(bool visible)
     {
-        if (inventoryGameObject != null)
-        {
-            inventoryGameObject.SetActive(false);
-        }
+        if (_inventoryCanvasGroup == null) return;
+        _inventoryCanvasGroup.alpha = visible ? 1f : 0f;
+        _inventoryCanvasGroup.interactable = visible;
+        _inventoryCanvasGroup.blocksRaycasts = visible;
     }
 
     /// <summary>
@@ -166,7 +265,8 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
                     // If all items were stacked, we're done
                     if (item.quantity <= 0)
                     {
-                        _recyclableScrollRect?.ReloadData();
+                        ScheduleReload();
+                        ScheduleSave();
                         return true;
                     }
                 }
@@ -182,7 +282,8 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
         
         _invenItems.Add(item);
         Debug.Log($"RecyclableInventoryManager: Added new stack of {item.quantity} {item.name}");
-        _recyclableScrollRect?.ReloadData();
+        ScheduleReload();
+        ScheduleSave();
         return true;
     }
     
@@ -212,7 +313,7 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
         if (index >= 0 && index < _invenItems.Count)
         {
             _invenItems.RemoveAt(index);
-            _recyclableScrollRect?.ReloadData();
+            ScheduleReload();
             return true;
         }
         return false;
@@ -230,13 +331,14 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
         {
             var item = _invenItems[index];
             item.quantity -= quantity;
-            
+
             if (item.quantity <= 0)
             {
                 _invenItems.RemoveAt(index);
             }
-            
-            _recyclableScrollRect?.ReloadData();
+
+            ScheduleReload();
+            ScheduleSave();
             return true;
         }
         return false;
@@ -248,7 +350,7 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
     public void ClearInventory()
     {
         _invenItems.Clear();
-        _recyclableScrollRect?.ReloadData();
+        ScheduleReload();
     }
     
     /// <summary>
@@ -336,7 +438,7 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
             itemType: "Material",
             iconName: ""
         );
-        
+
         if (AddInventoryItem(testItem))
         {
             Debug.Log("RecyclableInventoryManager: Added test item");
@@ -345,5 +447,189 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
         {
             Debug.LogWarning("RecyclableInventoryManager: Could not add test item (inventory full?)");
         }
+    }
+
+    // ==================== FIREBASE PERSISTENCE (Phase 2.5E) ====================
+
+    /// <summary>
+    /// Schedules a batched save to Firebase.
+    /// Prevents rapid writes during fast harvesting or trading.
+    /// </summary>
+    private void ScheduleSave()
+    {
+        hasPendingSave = true;
+        pendingSaveTimer = SAVE_BATCH_DELAY;
+    }
+
+    /// <summary>
+    /// Immediately saves inventory to Firebase.
+    /// Call before scene transitions or important actions.
+    /// </summary>
+    public void FlushSave()
+    {
+        if (hasPendingSave)
+        {
+            hasPendingSave = false;
+            SaveInventoryToFirebase();
+        }
+    }
+
+    /// <summary>
+    /// Saves the current inventory to Firebase under Users/{userId}/inventory.
+    /// Phase 2.5E Fix (BP3): Prevents inventory loss on crash.
+    /// </summary>
+    public void SaveInventoryToFirebase()
+    {
+        if (LoadDataManager.firebaseUser == null)
+        {
+            Debug.LogWarning("RecyclableInventoryManager: Cannot save — no Firebase user");
+            return;
+        }
+
+        string userId = LoadDataManager.firebaseUser.UserId;
+        string inventoryJson = JsonConvert.SerializeObject(_invenItems);
+
+        FirebaseDatabaseManager.Instance?.WriteDatabase(
+            FirebaseUserPaths.GetInventoryPath(userId),
+            inventoryJson,
+            (success, error) =>
+            {
+                if (success)
+                {
+                    Debug.Log($"RecyclableInventoryManager: Inventory saved ({_invenItems.Count} items)");
+                }
+                else
+                {
+                    Debug.LogError($"RecyclableInventoryManager: Failed to save inventory: {error}");
+                }
+            }
+        );
+    }
+
+    /// <summary>
+    /// Loads inventory from Firebase. Called during PlayScene initialization.
+    /// </summary>
+    public void LoadInventoryFromFirebase(System.Action<bool> onComplete = null)
+    {
+        if (LoadDataManager.firebaseUser == null)
+        {
+            Debug.LogWarning("RecyclableInventoryManager: Cannot load — no Firebase user");
+            onComplete?.Invoke(false);
+            return;
+        }
+
+        string userId = LoadDataManager.firebaseUser.UserId;
+
+        FirebaseDatabaseManager.Instance?.ReadDatabase(
+            FirebaseUserPaths.GetInventoryPath(userId),
+            (data) =>
+            {
+                if (!string.IsNullOrEmpty(data))
+                {
+                    try
+                    {
+                        var loadedItems = JsonConvert.DeserializeObject<List<InvenItems>>(data);
+                        if (loadedItems != null)
+                        {
+                            _invenItems = loadedItems;
+                            ScheduleReload();
+                            Debug.Log($"RecyclableInventoryManager: Loaded {_invenItems.Count} items from Firebase");
+                        }
+                        onComplete?.Invoke(true);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Debug.LogError($"RecyclableInventoryManager: Failed to parse inventory: {ex.Message}");
+                        onComplete?.Invoke(false);
+                    }
+                }
+                else
+                {
+                    Debug.Log("RecyclableInventoryManager: No saved inventory found");
+                    onComplete?.Invoke(true);
+                }
+            }
+        );
+    }
+
+    // ==================== STARTER PACK (SK-1) ====================
+
+    /// <summary>
+    /// Gives starter seeds to new players on first login.
+    /// Checks Users/{userId}/starterPackGiven flag — only runs once per account.
+    /// </summary>
+    private void GiveStarterPackIfNew()
+    {
+        if (LoadDataManager.firebaseUser == null) return;
+
+        string userId = LoadDataManager.firebaseUser.UserId;
+        string flagPath = FirebaseUserPaths.GetStarterPackFlagPath(userId);
+
+        FirebaseDatabaseManager.Instance?.ReadDatabase(flagPath, (data) =>
+        {
+            if (!string.IsNullOrEmpty(data)) return; // Already received starter pack
+
+            // Give 5× Tomato seeds + 3× Wheat seeds
+            AddInventoryItem(new InvenItems(
+                itemId: "seed_tomato",
+                name: "Hạt Cà Chua",
+                description: "Hạt giống cà chua tươi ngon.",
+                quantity: 5,
+                itemType: "Seed",
+                iconName: ""
+            ));
+            AddInventoryItem(new InvenItems(
+                itemId: "seed_wheat",
+                name: "Hạt Lúa Mì",
+                description: "Hạt giống lúa mì vàng óng.",
+                quantity: 3,
+                itemType: "Seed",
+                iconName: ""
+            ));
+
+            // Mark starter pack as given so it won't repeat
+            FirebaseDatabaseManager.Instance?.WriteDatabase(flagPath, "true", null);
+
+            FlushSave();
+            NotificationManager.Instance?.ShowNotification(
+                "Chào mừng! Bạn nhận được 5 Hạt Cà Chua và 3 Hạt Lúa Mì.", 3f);
+            Debug.Log("RecyclableInventoryManager: Starter pack given to new player.");
+
+            StartCoroutine(ShowTutorialHints());
+        });
+    }
+
+    /// <summary>
+    /// Shows sequential tutorial hints for first-time players (SK-2).
+    /// Waits for each notification to finish before showing the next.
+    /// </summary>
+    private System.Collections.IEnumerator ShowTutorialHints()
+    {
+        yield return new WaitForSeconds(4f); // After welcome message fades
+        NotificationManager.Instance?.ShowNotification("Nhấn [B] để mở túi đồ và chọn hạt giống.", 3.5f);
+        yield return new WaitForSeconds(4.5f);
+        NotificationManager.Instance?.ShowNotification("Nhấn [C] để cuốc đất, [V] để gieo hạt.", 3.5f);
+        yield return new WaitForSeconds(4.5f);
+        NotificationManager.Instance?.ShowNotification("Nhấn [F] để tưới nước, [M] để thu hoạch.", 3.5f);
+        yield return new WaitForSeconds(4.5f);
+        NotificationManager.Instance?.ShowNotification("Đến gặp người bán hàng và nhấn [E] để mua thêm hạt giống!", 4f);
+    }
+
+    void OnDestroy()
+    {
+        FlushSave();
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+        {
+            FlushSave();
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
+        FlushSave();
     }
 }

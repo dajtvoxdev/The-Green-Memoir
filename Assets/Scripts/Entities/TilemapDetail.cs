@@ -21,6 +21,7 @@ public enum TilemapState
     Ground,
     Grass,
     Forest,
+    Tilled,
 }
 
 

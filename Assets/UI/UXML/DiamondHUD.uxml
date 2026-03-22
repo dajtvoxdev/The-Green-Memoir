@@ -1,0 +1,6 @@
+﻿<ui:UXML xmlns:ui="UnityEngine.UIElements">
+  <ui:VisualElement name="diamond-hud" style="position: absolute; right: 10px; top: 60px; width: 150px; height: 40px; background-color: rgba(60, 40, 30, 0.8); border-radius: 5px; flex-direction: row; align-items: center; padding-left: 5px; padding-right: 5px;">
+    <ui:VisualElement name="icon" style="width: 30px; height: 30px; background-color: rgb(100, 200, 255);" />
+    <ui:Label name="value" text="0" style="color: rgb(255, 245, 220); font-size: 20px; -unity-text-align: middle-right; flex-grow: 1;" />
+  </ui:VisualElement>
+</ui:UXML>

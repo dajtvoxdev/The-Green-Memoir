@@ -40,18 +40,13 @@ public class CelllItemData : MonoBehaviour, ICell, IPointerClickHandler, IPointe
             desLabel.text = invenItems.description;
         }
 
-        // Show quantity badge for stacked items
+        // Show quantity badge for stacked items.
+        // Avoid SetActive on TMP_Text GameObject — it triggers OnEnable/OnDisable
+        // which calls SetAllDirty → RegisterCanvasElementForGraphicRebuild,
+        // causing "graphic rebuild loop" errors during Canvas batch processing.
         if (quantityLabel != null)
         {
-            if (invenItems.quantity > 1)
-            {
-                quantityLabel.text = invenItems.quantity.ToString();
-                quantityLabel.gameObject.SetActive(true);
-            }
-            else
-            {
-                quantityLabel.gameObject.SetActive(false);
-            }
+            quantityLabel.text = invenItems.quantity > 1 ? invenItems.quantity.ToString() : "";
         }
 
         // Deselect visual on reconfigure

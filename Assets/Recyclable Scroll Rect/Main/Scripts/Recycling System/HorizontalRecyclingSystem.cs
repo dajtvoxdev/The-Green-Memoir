@@ -63,7 +63,19 @@ namespace PolyAndCode.UI
             yield return null;
             SetRecyclingBounds();
 
-            //Cell Poool
+            // Pre-cleanup: deactivate existing pool cells so their Graphics
+            // unregister from the Canvas rebuild queue before destroy & recreate.
+            if (_cellPool != null && _cellPool.Count > 0)
+            {
+                for (int i = 0; i < _cellPool.Count; i++)
+                {
+                    if (_cellPool[i] != null)
+                        _cellPool[i].gameObject.SetActive(false);
+                }
+                yield return null;
+            }
+
+            //Cell Pool
             CreateCellPool();
             currentItemCount = _cellPool.Count;
             leftMostCellIndex = 0;

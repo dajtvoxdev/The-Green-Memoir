@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:lobehub.com)",
+      "Bash(npx -y @lobehub/market-cli skills install besty0728-unity-skills-unity-skills --agent claude-code)",
+      "Bash(npx -y @lobehub/market-cli register)",
+      "Bash(npx -y @lobehub/market-cli register --help)",
+      "Bash(npx -y @lobehub/market-cli register --name \"claude-code-agent\" --source \"claude-code\" --description \"Claude Code AI agent\")",
+      "Bash(bash /tmp/unity_mcp.sh '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":3,\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"manage_animation\"\",\"\"arguments\"\":{\"\"action\"\":\"\"get_parameters\"\",\"\"target\"\":\"\"Player \"\"}}}')",
+      "mcp__UnityMCP__find_gameobjects",
+      "mcp__pixellab__create_map_object",
+      "mcp__UnityMCP__manage_gameobject",
+      "mcp__pixellab__get_map_object",
+      "Bash(mkdir -p \"D:/Moonlit-Garden-develop/Assets/Sprites/Fences\" && curl --fail -o \"D:/Moonlit-Garden-develop/Assets/Sprites/Fences/fence_bamboo_horizontal.png\" \"https://api.pixellab.ai/mcp/map-objects/42f5aacd-a7e1-4d9e-a21c-37916f8717f7/download\" && curl --fail -o \"D:/Moonlit-Garden-develop/Assets/Sprites/Fences/fence_bamboo_vertical.png\" \"https://api.pixellab.ai/mcp/map-objects/b132dac6-b161-4cdc-a697-1635df472003/download\" && curl --fail -o \"D:/Moonlit-Garden-develop/Assets/Sprites/Fences/fence_bamboo_corner.png\" \"https://api.pixellab.ai/mcp/map-objects/14a476aa-650e-480d-99ae-50718d0162d7/download\" && echo \"All downloaded!\")",
+      "mcp__UnityMCP__refresh_unity",
+      "mcp__UnityMCP__create_script",
+      "mcp__UnityMCP__read_console",
+      "mcp__UnityMCP__execute_menu_item",
+      "mcp__UnityMCP__manage_scene",
+      "mcp__UnityMCP__manage_animation",
+      "mcp__UnityMCP__manage_script",
+      "mcp__UnityMCP__manage_components",
+      "mcp__UnityMCP__manage_asset",
+      "mcp__UnityMCP__manage_scriptable_object",
+      "mcp__ide__getDiagnostics",
+      "mcp__UnityMCP__manage_camera",
+      "mcp__UnityMCP__batch_execute",
+      "Skill(keybindings-help)",
+      "mcp__pixellab__create_character",
+      "Bash(SESSION_ID=\"98d890ddcbb948b6913776629319b2b0\"\ncurl -s -X POST http://127.0.0.1:8080/mcp \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -H \"Accept: application/json, text/event-stream\" \\\\\n  -H \"mcp-session-id: $SESSION_ID\" \\\\\n  -d '{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"gameobject_get_info\",\"arguments\":{\"name\":\"ShopNPC\"}}}')",
+      "Bash(SESSION_ID=\"98d890ddcbb948b6913776629319b2b0\"\ncurl -s -X POST http://127.0.0.1:8080/mcp \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -H \"Accept: application/json, text/event-stream\" \\\\\n  -H \"mcp-session-id: $SESSION_ID\" \\\\\n  -d '{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"gameobject_get_info\",\"arguments\":{\"name\":\"Player\"}}}')",
+      "Bash(SESSION_ID=\"98d890ddcbb948b6913776629319b2b0\"\ncurl -s -X POST http://127.0.0.1:8080/mcp \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -H \"Accept: application/json, text/event-stream\" \\\\\n  -H \"mcp-session-id: $SESSION_ID\" \\\\\n  -d '{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/list\",\"params\":{}}')",
+      "mcp__pixellab__get_character",
+      "mcp__pixellab__animate_character"
+    ]
+  }
+}
