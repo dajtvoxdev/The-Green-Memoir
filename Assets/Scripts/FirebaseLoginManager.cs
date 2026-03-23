@@ -74,6 +74,7 @@ public class FirebaseLoginManager : MonoBehaviour
     private void Start()
     {
         LoadGoogleOAuthRuntimeConfig();
+        Debug.Log($"FirebaseLoginManager: Google OAuth config ready. clientIdSet={!string.IsNullOrWhiteSpace(googleClientId)}, clientSecretSet={!string.IsNullOrWhiteSpace(googleClientSecret)}");
 
         auth = FirebaseAuth.DefaultInstance;
         buttonRegister.onClick.AddListener(RegisterAccountWithFireBase);
@@ -246,6 +247,11 @@ public class FirebaseLoginManager : MonoBehaviour
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(googleClientSecret))
+        {
+            Debug.LogWarning("FirebaseLoginManager: Google client secret is empty before token exchange.");
+        }
+
         ShowStatus("Đang mở trình duyệt để đăng nhập Google...", Color.white);
         StartCoroutine(GoogleOAuthDesktopFlow());
     }
@@ -368,19 +374,23 @@ public class FirebaseLoginManager : MonoBehaviour
 
     private IEnumerator ExchangeCodeForToken(string code, string redirectUri, string codeVerifier)
     {
-        WWWForm form = new WWWForm();
-        form.AddField("code", code);
-        form.AddField("client_id", googleClientId);
-        if (!string.IsNullOrWhiteSpace(googleClientSecret))
+        string body = BuildUrlEncodedForm(new[]
         {
-            form.AddField("client_secret", googleClientSecret);
-        }
-        form.AddField("redirect_uri", redirectUri);
-        form.AddField("code_verifier", codeVerifier);
-        form.AddField("grant_type", "authorization_code");
+            ("code", code),
+            ("client_id", googleClientId),
+            ("client_secret", googleClientSecret),
+            ("redirect_uri", redirectUri),
+            ("code_verifier", codeVerifier),
+            ("grant_type", "authorization_code"),
+        });
 
-        using (UnityWebRequest request = UnityWebRequest.Post("https://oauth2.googleapis.com/token", form))
+        using (UnityWebRequest request = new UnityWebRequest("https://oauth2.googleapis.com/token", UnityWebRequest.kHttpVerbPOST))
         {
+            request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(body));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            Debug.Log($"FirebaseLoginManager: Exchanging Google auth code. redirectUri={redirectUri}, clientIdSet={!string.IsNullOrWhiteSpace(googleClientId)}, clientSecretSet={!string.IsNullOrWhiteSpace(googleClientSecret)}");
             yield return request.SendWebRequest();
 
             if (request.result != UnityWebRequest.Result.Success)
@@ -428,6 +438,30 @@ public class FirebaseLoginManager : MonoBehaviour
                 StartCoroutine(ValidateLatestVersionAndEnter(user));
             });
         }
+    }
+
+    private static string BuildUrlEncodedForm((string key, string value)[] pairs)
+    {
+        StringBuilder builder = new StringBuilder();
+
+        foreach (var pair in pairs)
+        {
+            if (string.IsNullOrWhiteSpace(pair.key) || string.IsNullOrWhiteSpace(pair.value))
+            {
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.Append('&');
+            }
+
+            builder.Append(UnityWebRequest.EscapeURL(pair.key));
+            builder.Append('=');
+            builder.Append(UnityWebRequest.EscapeURL(pair.value));
+        }
+
+        return builder.ToString();
     }
 
     private int FindAvailablePort()
