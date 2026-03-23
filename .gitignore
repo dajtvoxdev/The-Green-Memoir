@@ -60,3 +60,7 @@ Assets/ExternalDependencyManager/Editor/**/*.exe
 # OS / editor temp
 *.stackdump
 crashlytics-build.properties
+
+# Local desktop OAuth config for release builds
+Assets/StreamingAssets/google-oauth-config.json
+Assets/StreamingAssets/google-oauth-config.json.meta

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.IO;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,6 +17,13 @@ using UnityEngine.UI;
 
 public class FirebaseLoginManager : MonoBehaviour
 {
+    [Serializable]
+    private class GoogleOAuthRuntimeConfig
+    {
+        public string clientId;
+        public string clientSecret;
+    }
+
     [Header("Register")]
     public InputField ipRegisterEmail;
     public InputField ipRegisterPassword;
@@ -65,6 +73,8 @@ public class FirebaseLoginManager : MonoBehaviour
 
     private void Start()
     {
+        LoadGoogleOAuthRuntimeConfig();
+
         auth = FirebaseAuth.DefaultInstance;
         buttonRegister.onClick.AddListener(RegisterAccountWithFireBase);
         buttonLogin.onClick.AddListener(SignInAccountWithFireBase);
@@ -83,6 +93,46 @@ public class FirebaseLoginManager : MonoBehaviour
         if (checkLatestReleaseOnStart)
         {
             StartCoroutine(FetchLatestReleaseManifest());
+        }
+    }
+
+    private void LoadGoogleOAuthRuntimeConfig()
+    {
+        try
+        {
+            string configPath = Path.Combine(Application.streamingAssetsPath, "google-oauth-config.json");
+            if (!File.Exists(configPath))
+            {
+                return;
+            }
+
+            string json = File.ReadAllText(configPath, Encoding.UTF8);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return;
+            }
+
+            GoogleOAuthRuntimeConfig config = JsonUtility.FromJson<GoogleOAuthRuntimeConfig>(json);
+            if (config == null)
+            {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(config.clientId))
+            {
+                googleClientId = config.clientId.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(config.clientSecret))
+            {
+                googleClientSecret = config.clientSecret.Trim();
+            }
+
+            Debug.Log($"FirebaseLoginManager: Loaded Google OAuth config from {configPath}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"FirebaseLoginManager: Failed to load Google OAuth runtime config: {ex.Message}");
         }
     }
 

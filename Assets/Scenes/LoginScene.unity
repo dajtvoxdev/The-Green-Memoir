@@ -1939,7 +1939,7 @@ MonoBehaviour:
   ipLoginPassword: {fileID: 2006520669}
   buttonLogin: {fileID: 395991905}
   buttonLoginGoogle: {fileID: 1591968085}
-  googleClientId: 
+  googleClientId: 984351192548-9mmovqgmt04omf6oih7o8i7s7ifcf3qq.apps.googleusercontent.com
   buttonMoveToSignIn: {fileID: 1452303723}
   buttonMoveToRegister: {fileID: 1082505245}
   loginForm: {fileID: 906024080}
