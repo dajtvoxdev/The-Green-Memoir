@@ -36,6 +36,8 @@ public class StaminaHUD : MonoBehaviour
 
     void Start()
     {
+        AutoWireReferences();
+
         if (StaminaManager.Instance != null)
         {
             StaminaManager.Instance.OnStaminaChanged += UpdateDisplay;
@@ -44,6 +46,28 @@ public class StaminaHUD : MonoBehaviour
         else
         {
             gameObject.SetActive(false);
+        }
+    }
+
+    /// <summary>
+    /// Auto-finds child UI elements if Inspector references are missing.
+    /// </summary>
+    private void AutoWireReferences()
+    {
+        if (staminaSlider == null)
+        {
+            staminaSlider = GetComponentInChildren<Slider>();
+        }
+
+        if (staminaText == null)
+        {
+            var textT = transform.Find("StaminaText");
+            if (textT != null) staminaText = textT.GetComponent<TMP_Text>();
+        }
+
+        if (fillImage == null && staminaSlider != null && staminaSlider.fillRect != null)
+        {
+            fillImage = staminaSlider.fillRect.GetComponent<Image>();
         }
     }
 

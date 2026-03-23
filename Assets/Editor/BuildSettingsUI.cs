@@ -160,7 +160,6 @@ public class BuildSettingsUI
         // Wire references to SettingsPanel
         var so = new SerializedObject(settingsPanel);
 
-        SetRef(so, "panelRoot", rootGO);
         SetRef(so, "bgmSlider", bgmSlider.GetComponent<Slider>());
         SetRef(so, "sfxSlider", sfxSlider.GetComponent<Slider>());
         SetRef(so, "bgmValueText", bgmValueText.GetComponent<TMP_Text>());
