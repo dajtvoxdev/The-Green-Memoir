@@ -22,7 +22,7 @@ public class SettingsManager : MonoBehaviour
 
     public float BGMVolume   { get; private set; } = 0.5f;
     public float SFXVolume   { get; private set; } = 0.7f;
-    public bool  IsFullscreen { get; private set; } = false;
+    public bool  IsFullscreen { get; private set; } = true;
     public bool  IsBGMMuted  { get; private set; } = false;
     public bool  IsSFXMuted  { get; private set; } = false;
 
@@ -99,7 +99,7 @@ public class SettingsManager : MonoBehaviour
     {
         BGMVolume    = PlayerPrefs.GetFloat(KEY_BGM, 0.5f);
         SFXVolume    = PlayerPrefs.GetFloat(KEY_SFX, 0.7f);
-        IsFullscreen = PlayerPrefs.GetInt(KEY_FULLSCREEN, 0) == 1;
+        IsFullscreen = PlayerPrefs.GetInt(KEY_FULLSCREEN, 1) == 1;
         IsBGMMuted   = PlayerPrefs.GetInt(KEY_BGM_MUTED, 0) == 1;
         IsSFXMuted   = PlayerPrefs.GetInt(KEY_SFX_MUTED, 0) == 1;
     }
@@ -118,6 +118,14 @@ public class SettingsManager : MonoBehaviour
         {
             AudioManager.Instance.bgmSource.mute = IsBGMMuted;
             AudioManager.Instance.sfxSource.mute = IsSFXMuted;
+        }
+    }
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.F11))
+        {
+            SetFullscreen(!IsFullscreen);
         }
     }
 
