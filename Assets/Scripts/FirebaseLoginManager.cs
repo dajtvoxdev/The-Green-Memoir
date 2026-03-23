@@ -819,6 +819,14 @@ public class FirebaseLoginManager : MonoBehaviour
             return string.Empty;
         }
 
-        return version.Trim().ToLowerInvariant().Replace(" ", string.Empty);
+        string normalized = version.Trim().ToLowerInvariant().Replace(" ", string.Empty);
+
+        // Strip leading "v" prefix so "v0.03" and "0.03" are treated as equal
+        if (normalized.StartsWith("v"))
+        {
+            normalized = normalized.Substring(1);
+        }
+
+        return normalized;
     }
 }
