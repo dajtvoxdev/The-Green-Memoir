@@ -49,6 +49,19 @@ public class LoadingScene : MonoBehaviour
         // Đăng ký lắng nghe sự kiện tải xong dữ liệu
         LoadDataManager.OnUserLoaded += OnUserDataLoaded;
 
+        // Build có thể load xong dữ liệu trước khi LoadingScene kịp subscribe event.
+        // Khi đó cần tự đồng bộ trạng thái hiện tại để tránh kẹt vô hạn ở màn loading.
+        if (LoadDataManager.IsDataLoaded && LoadDataManager.userInGame != null)
+        {
+            Debug.Log("LoadingScene: User data was already loaded before the loading screen subscribed.");
+            OnUserDataLoaded(true);
+        }
+        else if (LoadDataManager.firebaseUser != null && LoadDataManager.Instance != null && !LoadDataManager.Instance.IsLoadInProgress)
+        {
+            Debug.Log("LoadingScene: Firebase user exists but profile is not loaded yet. Requesting an explicit reload.");
+            LoadDataManager.Instance.GetUserInGame();
+        }
+
         // Bắt đầu coroutine theo dõi tiến trình
         StartCoroutine(LoadingRoutine());
     }

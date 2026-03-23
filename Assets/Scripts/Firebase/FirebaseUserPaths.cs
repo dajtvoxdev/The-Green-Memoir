@@ -12,6 +12,8 @@ public static class FirebaseUserPaths
 
     public static string GetStarterPackFlagPath(string userId) => $"{GetUserRootPath(userId)}/starterPackGiven";
 
+    public static string GetStarterPackRecoveryFlagPath(string userId) => $"{GetUserRootPath(userId)}/starterPackRecovered";
+
     public static string GetProfileMapPath(string userId) => $"{GetUserProfilePath(userId)}/MapInGame";
 
     public static string GetProfileTilesPath(string userId) => $"{GetProfileMapPath(userId)}/lstTilemapDetail";

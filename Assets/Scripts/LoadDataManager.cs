@@ -5,6 +5,7 @@ using Firebase.Database;
 using Firebase.Extensions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -51,6 +52,11 @@ public class LoadDataManager : MonoBehaviour
     /// Whether the real-time listener is active.
     /// </summary>
     public bool IsListening { get; private set; } = false;
+
+    /// <summary>
+    /// Whether a Firebase profile load is currently in progress.
+    /// </summary>
+    public bool IsLoadInProgress => isLoadInFlight;
 
     private DatabaseReference reference;
     private DatabaseReference userRef;
@@ -581,6 +587,8 @@ public class LoadDataManager : MonoBehaviour
             return null;
         }
 
+        token = NormalizeUserToken(token);
+
         string json = token.Type == JTokenType.String
             ? FirebaseJsonUtility.NormalizeReadValue(token.ToString(Formatting.None))
             : token.ToString(Formatting.None);
@@ -592,13 +600,172 @@ public class LoadDataManager : MonoBehaviour
 
         try
         {
-            return JsonConvert.DeserializeObject<User>(json);
+            User user = JsonConvert.DeserializeObject<User>(json);
+            HydrateUserFromToken(user, token);
+            return user;
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"LoadDataManager: Failed to deserialize user token: {ex.Message}");
             return null;
         }
+    }
+
+    private void HydrateUserFromToken(User user, JToken token)
+    {
+        if (user == null || token == null)
+        {
+            return;
+        }
+
+        if (token.Type == JTokenType.String)
+        {
+            string normalized = FirebaseJsonUtility.NormalizeReadValue(token.ToString(Formatting.None));
+            if (!string.IsNullOrEmpty(normalized))
+            {
+                try
+                {
+                    token = JToken.Parse(normalized);
+                }
+                catch
+                {
+                    return;
+                }
+            }
+        }
+
+        if (token.Type != JTokenType.Object)
+        {
+            return;
+        }
+
+        JObject obj = (JObject)token;
+        JToken tileListToken = obj["MapInGame"]?["lstTilemapDetail"];
+        List<TilemapDetail> tiles = TryDeserializeTileList(tileListToken);
+
+        if (tiles != null)
+        {
+            user.MapInGame ??= new Map();
+            user.MapInGame.lstTilemapDetail = tiles;
+        }
+    }
+
+    private JToken NormalizeUserToken(JToken token)
+    {
+        if (token == null)
+        {
+            return token;
+        }
+
+        if (token.Type == JTokenType.String)
+        {
+            string normalized = FirebaseJsonUtility.NormalizeReadValue(token.ToString(Formatting.None));
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return token;
+            }
+
+            try
+            {
+                token = JToken.Parse(normalized);
+            }
+            catch
+            {
+                return token;
+            }
+        }
+
+        if (token.Type != JTokenType.Object)
+        {
+            return token;
+        }
+
+        JObject clone = (JObject)token.DeepClone();
+        JToken tileListToken = clone["MapInGame"]?["lstTilemapDetail"];
+        if (tileListToken is JObject tileListObject)
+        {
+            clone["MapInGame"]["lstTilemapDetail"] = ConvertIndexedObjectToArray(tileListObject);
+        }
+
+        return clone;
+    }
+
+    private List<TilemapDetail> TryDeserializeTileList(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null)
+        {
+            return null;
+        }
+
+        if (token.Type == JTokenType.String)
+        {
+            string normalized = FirebaseJsonUtility.NormalizeReadValue(token.ToString(Formatting.None));
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return null;
+            }
+
+            try
+            {
+                token = JToken.Parse(normalized);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        if (token is JArray array)
+        {
+            try
+            {
+                return array.ToObject<List<TilemapDetail>>();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        if (token is JObject indexedObject)
+        {
+            JArray normalizedArray = ConvertIndexedObjectToArray(indexedObject);
+            try
+            {
+                return normalizedArray.ToObject<List<TilemapDetail>>();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private JArray ConvertIndexedObjectToArray(JObject indexedObject)
+    {
+        var orderedItems = new List<(int index, JToken value)>();
+
+        foreach (JProperty property in indexedObject.Properties())
+        {
+            if (!int.TryParse(property.Name, out int index))
+            {
+                continue;
+            }
+
+            orderedItems.Add((index, property.Value));
+        }
+
+        orderedItems.Sort((left, right) => left.index.CompareTo(right.index));
+
+        JArray array = new JArray();
+        foreach (var item in orderedItems)
+        {
+            array.Add(item.value);
+        }
+
+        return array;
     }
 
     private bool LooksLikeUserToken(JToken token)

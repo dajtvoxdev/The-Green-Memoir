@@ -11,6 +11,7 @@ using UnityEngine;
 /// </summary>
 public static class TmpVietnameseFallbackBootstrap
 {
+    private const string PermanentFallbackResourcePath = "Fonts & Materials/Vietnamese Fallback SDF";
     private static readonly string[] CandidateFonts =
     {
         "Segoe UI",
@@ -24,6 +25,14 @@ public static class TmpVietnameseFallbackBootstrap
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void InstallFallback()
     {
+        // A permanent fallback asset already exists in this project, so we can skip
+        // the noisy runtime OS-font bootstrap entirely.
+        TMP_FontAsset permanentFallback = Resources.Load<TMP_FontAsset>(PermanentFallbackResourcePath);
+        if (permanentFallback != null)
+        {
+            return;
+        }
+
         TMP_FontAsset fallbackFont = CreateDynamicFallback();
         if (fallbackFont == null) return;
 
@@ -34,7 +43,6 @@ public static class TmpVietnameseFallbackBootstrap
         // Strategy 2: Add to TMP_Settings global fallback list (covers non-default fonts)
         AddToGlobalFallback(fallbackFont);
 
-        Debug.Log($"TmpVietnameseFallbackBootstrap: Installed Vietnamese fallback font.");
     }
 
     private static TMP_FontAsset CreateDynamicFallback()
@@ -42,14 +50,12 @@ public static class TmpVietnameseFallbackBootstrap
         Font osFont = Font.CreateDynamicFontFromOSFont(CandidateFonts, 36);
         if (osFont == null)
         {
-            Debug.LogWarning("TmpVietnameseFallbackBootstrap: No candidate OS font found.");
             return null;
         }
 
         TMP_FontAsset fallback = TMP_FontAsset.CreateFontAsset(osFont);
         if (fallback == null)
         {
-            Debug.LogWarning("TmpVietnameseFallbackBootstrap: Failed to create TMP_FontAsset.");
             return null;
         }
 
@@ -73,7 +79,6 @@ public static class TmpVietnameseFallbackBootstrap
 
         if (defaultFont == null)
         {
-            Debug.LogWarning("TmpVietnameseFallbackBootstrap: Default font asset not found.");
             return;
         }
 

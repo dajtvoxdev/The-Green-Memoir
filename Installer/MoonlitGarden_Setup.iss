@@ -10,7 +10,7 @@
 ; ============================================================
 
 #define MyAppName "Moonlit Garden"
-#define MyAppVersion "0.03"
+#define MyAppVersion "0.04"
 #define MyAppPublisher "Moonlit Garden Studio"
 #define MyAppURL "https://github.com/YourRepo/Moonlit-Garden"
 #define MyAppExeName "MoonlitGarden.exe"

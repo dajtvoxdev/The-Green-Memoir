@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// Manages player stamina — a finite daily resource consumed by farm actions.
+/// Manages player stamina, a finite daily resource consumed by farm actions.
 /// Fully restores at the start of each new in-game day.
 ///
 /// Phase 3 Feature (#33): Energy / Stamina System.
@@ -12,7 +12,7 @@ using UnityEngine;
 ///
 /// Usage:
 ///   bool ok = StaminaManager.Instance.TrySpendStamina(StaminaManager.COST_PLANT);
-///   if (!ok) return; // blocked — show notification automatically
+///   if (!ok) return; // blocked - show notification automatically
 /// </summary>
 public class StaminaManager : MonoBehaviour
 {
@@ -22,10 +22,9 @@ public class StaminaManager : MonoBehaviour
     [Tooltip("Maximum stamina per day.")]
     public int maxStamina = 50;
 
-    // ── Action costs (constants, read by PlayerFarmController)
-    public const int COST_TILL    = 1;
-    public const int COST_PLANT   = 2;
-    public const int COST_WATER   = 1;
+    public const int COST_TILL = 1;
+    public const int COST_PLANT = 2;
+    public const int COST_WATER = 1;
     public const int COST_HARVEST = 2;
 
     /// <summary>Current stamina value.</summary>
@@ -53,15 +52,17 @@ public class StaminaManager : MonoBehaviour
     void Start()
     {
         CurrentStamina = maxStamina;
+        TryApplySavedStamina();
         OnStaminaChanged?.Invoke(CurrentStamina, maxStamina);
 
         if (GameTimeManager.Instance != null)
         {
             GameTimeManager.Instance.OnNewDay += HandleNewDay;
         }
-    }
 
-    // ==================== PUBLIC API ====================
+        LoadDataManager.OnUserLoaded += HandleUserLoaded;
+        LoadDataManager.OnServerDataChanged += HandleServerDataChanged;
+    }
 
     /// <summary>
     /// Returns true if stamina is sufficient for the given cost.
@@ -76,12 +77,13 @@ public class StaminaManager : MonoBehaviour
         if (CurrentStamina < cost)
         {
             NotificationManager.Instance?.ShowNotification(
-                "Hết năng lượng! Nghỉ ngơi đến ngày mai để phục hồi.", 2.5f);
+                "Het nang luong! Nghi ngoi den ngay mai de phuc hoi.", 2.5f);
             OnStaminaEmpty?.Invoke();
             return false;
         }
 
         CurrentStamina -= cost;
+        SyncToUserProfile();
         OnStaminaChanged?.Invoke(CurrentStamina, maxStamina);
         AudioManager.Instance?.PlaySFX("ui_click");
         return true;
@@ -93,18 +95,62 @@ public class StaminaManager : MonoBehaviour
     public void RestoreStamina(int amount)
     {
         CurrentStamina = Mathf.Min(CurrentStamina + amount, maxStamina);
+        SyncToUserProfile();
         OnStaminaChanged?.Invoke(CurrentStamina, maxStamina);
     }
-
-    // ==================== PRIVATE ====================
 
     private void HandleNewDay(int day)
     {
         CurrentStamina = maxStamina;
+        SyncToUserProfile();
         OnStaminaChanged?.Invoke(CurrentStamina, maxStamina);
         NotificationManager.Instance?.ShowNotification(
-            $"Ngày {day} bắt đầu! Năng lượng đã phục hồi hoàn toàn ({maxStamina}/{maxStamina}).", 3f);
+            $"Ngay {day} bat dau! Nang luong da phuc hoi hoan toan ({maxStamina}/{maxStamina}).", 3f);
         Debug.Log($"StaminaManager: Stamina restored on Day {day}");
+    }
+
+    private void HandleUserLoaded(bool success)
+    {
+        if (!success)
+        {
+            return;
+        }
+
+        TryApplySavedStamina();
+        OnStaminaChanged?.Invoke(CurrentStamina, maxStamina);
+    }
+
+    private void HandleServerDataChanged(User serverUser)
+    {
+        if (serverUser == null)
+        {
+            return;
+        }
+
+        CurrentStamina = Mathf.Clamp(serverUser.Stamina, 0, maxStamina);
+        SyncToUserProfile();
+        OnStaminaChanged?.Invoke(CurrentStamina, maxStamina);
+    }
+
+    private void TryApplySavedStamina()
+    {
+        if (LoadDataManager.userInGame == null)
+        {
+            return;
+        }
+
+        CurrentStamina = Mathf.Clamp(LoadDataManager.userInGame.Stamina, 0, maxStamina);
+        SyncToUserProfile();
+    }
+
+    private void SyncToUserProfile()
+    {
+        if (LoadDataManager.userInGame == null)
+        {
+            return;
+        }
+
+        LoadDataManager.userInGame.Stamina = Mathf.Clamp(CurrentStamina, 0, maxStamina);
     }
 
     void OnDestroy()
@@ -118,5 +164,8 @@ public class StaminaManager : MonoBehaviour
         {
             GameTimeManager.Instance.OnNewDay -= HandleNewDay;
         }
+
+        LoadDataManager.OnUserLoaded -= HandleUserLoaded;
+        LoadDataManager.OnServerDataChanged -= HandleServerDataChanged;
     }
 }

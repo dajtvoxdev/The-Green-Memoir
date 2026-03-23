@@ -54,6 +54,8 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
     // Deferred reload: prevents Canvas rebuild conflicts when modifying UI hierarchy
     private bool _reloadPending;
     private Coroutine _reloadCoroutine;
+    private bool _inventoryNodeExists;
+    private bool _bootstrapStarted;
 
     // Recyclable scroll rect's data source must be assigned in Awake.
     // Initialize() is also called here so the RecyclableScroll GO is guaranteed active.
@@ -152,6 +154,35 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
         }
 
         LoadDataManager.OnUserLoaded -= HandleUserLoaded;
+        if (_bootstrapStarted) return;
+
+        _bootstrapStarted = true;
+        StartCoroutine(BootstrapInventoryWhenReady());
+    }
+
+    private System.Collections.IEnumerator BootstrapInventoryWhenReady()
+    {
+        const float timeout = 10f;
+        float startedAt = Time.time;
+
+        while (FirebaseDatabaseManager.Instance == null)
+        {
+            if (Time.time - startedAt > timeout)
+            {
+                Debug.LogError("RecyclableInventoryManager: Timed out waiting for FirebaseDatabaseManager before inventory bootstrap.");
+                yield break;
+            }
+
+            yield return null;
+        }
+
+        if (LoadDataManager.firebaseUser == null)
+        {
+            Debug.LogWarning("RecyclableInventoryManager: Firebase user disappeared before inventory bootstrap.");
+            yield break;
+        }
+
+        Debug.Log($"RecyclableInventoryManager: Bootstrapping inventory for {LoadDataManager.firebaseUser.UserId}");
 
         LoadInventoryFromFirebase(success =>
         {
@@ -562,12 +593,22 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
             return;
         }
 
-        string userId = LoadDataManager.firebaseUser.UserId;
+        if (FirebaseDatabaseManager.Instance == null)
+        {
+            Debug.LogWarning("RecyclableInventoryManager: Cannot load — FirebaseDatabaseManager is not ready yet");
+            onComplete?.Invoke(false);
+            return;
+        }
 
-        FirebaseDatabaseManager.Instance?.ReadDatabase(
+        string userId = LoadDataManager.firebaseUser.UserId;
+        Debug.Log($"RecyclableInventoryManager: Loading inventory from {FirebaseUserPaths.GetInventoryPath(userId)}");
+
+        FirebaseDatabaseManager.Instance.ReadDatabase(
             FirebaseUserPaths.GetInventoryPath(userId),
             (data) =>
             {
+                _inventoryNodeExists = !string.IsNullOrEmpty(data);
+
                 if (!string.IsNullOrEmpty(data))
                 {
                     try
@@ -578,6 +619,10 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
                             _invenItems = loadedItems;
                             ScheduleReload();
                             Debug.Log($"RecyclableInventoryManager: Loaded {_invenItems.Count} items from Firebase");
+                        }
+                        else
+                        {
+                            Debug.LogWarning("RecyclableInventoryManager: Inventory payload parsed but produced null list.");
                         }
                         onComplete?.Invoke(true);
                     }
@@ -605,48 +650,83 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
     private void GiveStarterPackIfNew()
     {
         if (LoadDataManager.firebaseUser == null) return;
+        if (FirebaseDatabaseManager.Instance == null)
+        {
+            Debug.LogWarning("RecyclableInventoryManager: Cannot check starter pack - FirebaseDatabaseManager is not ready yet");
+            return;
+        }
 
         string userId = LoadDataManager.firebaseUser.UserId;
         string flagPath = FirebaseUserPaths.GetStarterPackFlagPath(userId);
+        Debug.Log($"RecyclableInventoryManager: Checking starter pack flag at {flagPath}");
 
-        FirebaseDatabaseManager.Instance?.ReadDatabase(flagPath, (data) =>
+        FirebaseDatabaseManager.Instance.ReadDatabase(flagPath, (data) =>
         {
-            if (!string.IsNullOrEmpty(data)) return; // Already received starter pack
+            if (!string.IsNullOrEmpty(data))
+            {
+                Debug.Log("RecyclableInventoryManager: Starter pack already granted before.");
+                AttemptStarterPackRecoveryIfNeeded(userId);
+                return;
+            }
 
-            // Give 5× Tomato seeds + 3× Wheat seeds
-            AddInventoryItem(new InvenItems(
-                itemId: "seed_tomato",
-                name: "Hạt Cà Chua",
-                description: "Hạt giống cà chua tươi ngon.",
-                quantity: 5,
-                itemType: "Seed",
-                iconName: ""
-            ));
-            AddInventoryItem(new InvenItems(
-                itemId: "seed_wheat",
-                name: "Hạt Lúa Mì",
-                description: "Hạt giống lúa mì vàng óng.",
-                quantity: 3,
-                itemType: "Seed",
-                iconName: ""
-            ));
-
-            // Mark starter pack as given so it won't repeat
-            FirebaseDatabaseManager.Instance?.WriteDatabase(flagPath, "true", null);
-
-            FlushSave();
-            NotificationManager.Instance?.ShowNotification(
-                "Chào mừng! Bạn nhận được 5 Hạt Cà Chua và 3 Hạt Lúa Mì.", 3f);
-            Debug.Log("RecyclableInventoryManager: Starter pack given to new player.");
-
-            StartCoroutine(ShowTutorialHints());
+            GrantStarterPack(flagPath, false);
         });
     }
 
-    /// <summary>
-    /// Shows sequential tutorial hints for first-time players (SK-2).
-    /// Waits for each notification to finish before showing the next.
-    /// </summary>
+    private void AttemptStarterPackRecoveryIfNeeded(string userId)
+    {
+        if (_inventoryNodeExists || _invenItems.Count > 0)
+        {
+            return;
+        }
+
+        string recoveryFlagPath = FirebaseUserPaths.GetStarterPackRecoveryFlagPath(userId);
+        FirebaseDatabaseManager.Instance.ReadDatabase(recoveryFlagPath, (recoveryFlag) =>
+        {
+            if (!string.IsNullOrEmpty(recoveryFlag))
+            {
+                Debug.Log("RecyclableInventoryManager: Starter pack recovery was already applied before.");
+                return;
+            }
+
+            Debug.LogWarning("RecyclableInventoryManager: Inventory node is missing even though starter pack was already granted. Re-applying starter pack once for recovery.");
+            GrantStarterPack(recoveryFlagPath, true);
+        });
+    }
+
+    private void GrantStarterPack(string completionFlagPath, bool isRecoveryGrant)
+    {
+        AddInventoryItem(new InvenItems(
+            itemId: "seed_tomato",
+            name: "Hat Ca Chua",
+            description: "Hat giong ca chua tuoi ngon.",
+            quantity: 5,
+            itemType: "Seed",
+            iconName: ""
+        ));
+        AddInventoryItem(new InvenItems(
+            itemId: "seed_wheat",
+            name: "Hat Lua Mi",
+            description: "Hat giong lua mi vang ong.",
+            quantity: 3,
+            itemType: "Seed",
+            iconName: ""
+        ));
+
+        FirebaseDatabaseManager.Instance.WriteDatabase(completionFlagPath, "true", null);
+        FlushSave();
+
+        if (isRecoveryGrant)
+        {
+            NotificationManager.Instance?.ShowNotification("Da khoi phuc hanh trang khoi dau cho tai khoan nay.", 3f);
+            Debug.Log("RecyclableInventoryManager: Starter pack restored for a migrated account.");
+            return;
+        }
+
+        NotificationManager.Instance?.ShowNotification("Chao mung! Ban nhan duoc 5 Hat Ca Chua va 3 Hat Lua Mi.", 3f);
+        Debug.Log("RecyclableInventoryManager: Starter pack given to new player.");
+        StartCoroutine(ShowTutorialHints());
+    }
     private System.Collections.IEnumerator ShowTutorialHints()
     {
         yield return new WaitForSeconds(4f); // After welcome message fades

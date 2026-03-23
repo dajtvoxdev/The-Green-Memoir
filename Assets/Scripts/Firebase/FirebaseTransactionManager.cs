@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Firebase.Database;
 using Firebase.Extensions;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -221,6 +222,7 @@ public class FirebaseTransactionManager : MonoBehaviour
 
             try
             {
+                currentJson = NormalizeUserJson(currentJson);
                 User serverUser = JsonConvert.DeserializeObject<User>(currentJson);
 
                 // Version check: reject if server has newer version
@@ -251,6 +253,47 @@ public class FirebaseTransactionManager : MonoBehaviour
         }
 
         return result;
+    }
+
+    private string NormalizeUserJson(string rawJson)
+    {
+        string normalized = FirebaseJsonUtility.NormalizeReadValue(rawJson);
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return normalized;
+        }
+
+        try
+        {
+            JToken token = JToken.Parse(normalized);
+            if (token is JObject obj && obj["MapInGame"]?["lstTilemapDetail"] is JObject tileListObject)
+            {
+                var orderedItems = new List<(int index, JToken value)>();
+                foreach (JProperty property in tileListObject.Properties())
+                {
+                    if (int.TryParse(property.Name, out int index))
+                    {
+                        orderedItems.Add((index, property.Value));
+                    }
+                }
+
+                orderedItems.Sort((left, right) => left.index.CompareTo(right.index));
+                JArray array = new JArray();
+                foreach (var item in orderedItems)
+                {
+                    array.Add(item.value);
+                }
+
+                obj["MapInGame"]["lstTilemapDetail"] = array;
+                return obj.ToString(Formatting.None);
+            }
+        }
+        catch
+        {
+            return normalized;
+        }
+
+        return normalized;
     }
 
     /// <summary>

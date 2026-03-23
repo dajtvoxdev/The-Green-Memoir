@@ -12,6 +12,9 @@ public class User
     public string Name {  get; set; }
     public int Gold { get; set; }
     public int Diamond { get; set; }
+    [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+    [System.ComponentModel.DefaultValue(50)]
+    public int Stamina { get; set; }
 
     public Map MapInGame {  get; set; }
 
@@ -33,6 +36,7 @@ public class User
 
     public User()
     {
+        Stamina = 50;
         Version = 0;
         HasPurchased = false;
     }
@@ -42,6 +46,7 @@ public class User
         Name = name;
         Gold = gold;
         Diamond = diamond;
+        Stamina = 50;
         MapInGame = mapInGame;
         Version = 0;
         HasPurchased = false;

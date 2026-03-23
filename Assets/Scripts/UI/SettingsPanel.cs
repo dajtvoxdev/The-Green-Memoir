@@ -30,6 +30,7 @@ public class SettingsPanel : PanelBase
     public KeyCode toggleKey = KeyCode.Escape;
 
     private bool isOpen = false;
+    private bool isLoggingOut = false;
 
     protected override void Awake()
     {
@@ -206,6 +207,50 @@ public class SettingsPanel : PanelBase
 
     private void OnLogoutClicked()
     {
+        if (isLoggingOut) return;
+        StartCoroutine(LogoutRoutine());
+    }
+
+    private System.Collections.IEnumerator LogoutRoutine()
+    {
+        isLoggingOut = true;
+        Debug.Log("SettingsPanel: Logout requested. Flushing gameplay data before leaving PlayScene.");
+
+        FindFirstObjectByType<RecyclableInventoryManager>()?.FlushSave();
+        PlayerEconomyManager.Instance?.FlushSave();
+
+        bool saveCompleted = false;
+        bool saveSucceeded = false;
+        string saveError = null;
+
+        if (LoadDataManager.Instance != null && LoadDataManager.userInGame != null && LoadDataManager.firebaseUser != null)
+        {
+            LoadDataManager.Instance.SaveUserInGame((success, error) =>
+            {
+                saveCompleted = true;
+                saveSucceeded = success;
+                saveError = error;
+            });
+
+            float timeout = 3f;
+            while (!saveCompleted && timeout > 0f)
+            {
+                timeout -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (!saveCompleted)
+            {
+                Debug.LogWarning("SettingsPanel: Timed out waiting for final profile save during logout.");
+            }
+            else if (!saveSucceeded)
+            {
+                Debug.LogWarning($"SettingsPanel: Final profile save reported an error during logout: {saveError}");
+            }
+        }
+
+        yield return new WaitForSecondsRealtime(0.2f);
+
         FirebaseAuth.DefaultInstance.SignOut();
         LoadDataManager.Reset();
         Time.timeScale = 1f;
