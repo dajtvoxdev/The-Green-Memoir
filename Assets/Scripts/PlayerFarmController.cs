@@ -18,6 +18,7 @@ public class PlayerFarmController : MonoBehaviour
 {
     [Header("Tilemap References")]
     public Tilemap tm_Ground;
+    public Tilemap tm_Path;
     public Tilemap tm_Grass;
     public Tilemap tm_Forest;
 
@@ -37,8 +38,15 @@ public class PlayerFarmController : MonoBehaviour
     [Tooltip("Max distance (in tiles) the player can interact with.")]
     public float maxInteractRange = 2.5f;
 
+    [Tooltip("Only allow digging on cells that exist on Tilemap_Path.")]
+    public bool requirePathTileForDig = true;
+
+    [Tooltip("Physics layers treated as blocking obstacles for digging. Leave empty to detect all non-tilemap colliders.")]
+    public LayerMask digObstacleMask = Physics2D.DefaultRaycastLayers;
+
     private Animator animator;
     private RecyclableInventoryManager recyclableInventoryManager;
+    private static readonly Collider2D[] digOverlapBuffer = new Collider2D[16];
 
     public static PlayerFarmController Instance { get; private set; }
 
@@ -52,6 +60,15 @@ public class PlayerFarmController : MonoBehaviour
     {
         animator = GetComponent<Animator>();
         recyclableInventoryManager = FindObjectOfType<RecyclableInventoryManager>();
+
+        if (tm_Path == null)
+        {
+            GameObject pathObject = GameObject.Find("Tilemap_Path");
+            if (pathObject != null)
+            {
+                tm_Path = pathObject.GetComponent<Tilemap>();
+            }
+        }
 
         if (cropGrowthManager == null)
             cropGrowthManager = CropGrowthManager.Instance;
@@ -103,6 +120,11 @@ public class PlayerFarmController : MonoBehaviour
             bool hasOverlay = tm_Forest != null && tm_Forest.GetTile(cellPos) != null;
             if (grassTile != null && !hasOverlay)
             {
+                if (!CanTillCell(cellPos, true))
+                {
+                    return false;
+                }
+
                 Debug.Log($"[Farm] No tile data but grass tile found at ({cellPos.x},{cellPos.y}), tilling");
                 DoTill(cellPos);
                 return true;
@@ -115,6 +137,11 @@ public class PlayerFarmController : MonoBehaviour
         // Data model is source of truth: Forest/Water tiles already have TilemapState.Forest
         if (tile.tilemapState == TilemapState.Grass)
         {
+            if (!CanTillCell(cellPos, true))
+            {
+                return false;
+            }
+
             DoTill(cellPos);
             return true;
         }
@@ -164,6 +191,7 @@ public class PlayerFarmController : MonoBehaviour
     /// </summary>
     private void DoTill(Vector3Int cellPos)
     {
+        if (!CanTillCell(cellPos, true)) return;
         if (!StaminaCheck(StaminaManager.COST_TILL)) return;
 
         animator?.SetTrigger("Dig");
@@ -174,6 +202,73 @@ public class PlayerFarmController : MonoBehaviour
         AudioManager.Instance?.PlaySFX("till");
         TutorialManager.Instance?.CompleteStep(TutorialManager.TutorialStep.TillSoil);
         Debug.Log($"[Farm] Tilled ground at ({cellPos.x},{cellPos.y})");
+    }
+
+    private bool CanTillCell(Vector3Int cellPos, bool notifyPlayer)
+    {
+        if (requirePathTileForDig && tm_Path != null && !tm_Path.HasTile(cellPos))
+        {
+            if (notifyPlayer)
+            {
+                NotificationManager.Instance?.ShowNotification(
+                    "Chỉ được đào đất ở ô đất trống.", 1.5f);
+            }
+
+            Debug.Log($"[Farm] Dig blocked at ({cellPos.x},{cellPos.y}) - no Tilemap_Path tile");
+            return false;
+        }
+
+        if (HasBlockingObstacle(cellPos))
+        {
+            if (notifyPlayer)
+            {
+                NotificationManager.Instance?.ShowNotification(
+                    "Ô này đang có vật cản, không thể cuốc đất.", 1.5f);
+            }
+
+            Debug.Log($"[Farm] Dig blocked at ({cellPos.x},{cellPos.y}) - obstacle detected");
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool HasBlockingObstacle(Vector3Int cellPos)
+    {
+        Vector3 worldCenter = tm_Ground.CellToWorld(cellPos) + new Vector3(0.5f, 0.5f, 0f);
+        Vector2 overlapSize = new Vector2(0.8f, 0.8f);
+        ContactFilter2D filter = new ContactFilter2D
+        {
+            useTriggers = true,
+            useLayerMask = digObstacleMask.value != 0,
+            layerMask = digObstacleMask,
+            useDepth = false,
+            useNormalAngle = false,
+        };
+
+        int count = Physics2D.OverlapBox((Vector2)worldCenter, overlapSize, 0f, filter, digOverlapBuffer);
+        for (int i = 0; i < count; i++)
+        {
+            Collider2D hit = digOverlapBuffer[i];
+            if (hit == null)
+            {
+                continue;
+            }
+
+            if (hit.transform == transform || hit.attachedRigidbody == GetComponent<Rigidbody2D>())
+            {
+                continue;
+            }
+
+            if (hit.GetComponent<TilemapCollider2D>() != null || hit.GetComponentInParent<Tilemap>() != null)
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using UnityEngine.UI;
 
 /// <summary>
 /// Tooltip popup that shows detailed item information.
@@ -44,6 +45,7 @@ public class ItemTooltip : MonoBehaviour
 
         rectTransform = GetComponent<RectTransform>();
         parentCanvas = GetComponentInParent<Canvas>();
+        EnsureVisualStyle();
 
         Hide();
     }
@@ -140,6 +142,33 @@ public class ItemTooltip : MonoBehaviour
         if (minY < canvasRect.yMin) pos.y += (canvasRect.yMin - minY);
 
         rectTransform.localPosition = pos;
+    }
+
+    private void EnsureVisualStyle()
+    {
+        if (rectTransform != null)
+        {
+            rectTransform.pivot = new Vector2(0f, 1f);
+            rectTransform.sizeDelta = new Vector2(
+                Mathf.Max(rectTransform.sizeDelta.x, 220f),
+                Mathf.Max(rectTransform.sizeDelta.y, 120f)
+            );
+        }
+
+        Image bg = GetComponent<Image>();
+        if (bg == null)
+        {
+            bg = gameObject.AddComponent<Image>();
+        }
+        bg.color = new Color(0.06f, 0.04f, 0.02f, 0.96f);
+
+        Outline outline = GetComponent<Outline>();
+        if (outline == null)
+        {
+            outline = gameObject.AddComponent<Outline>();
+        }
+        outline.effectColor = new Color(0.83f, 0.66f, 0.24f, 0.8f);
+        outline.effectDistance = new Vector2(2f, -2f);
     }
 
     void OnDestroy()

@@ -25,6 +25,10 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
 
     public GameObject inventoryGameObject;
 
+    [Header("Inventory Layout")]
+    [Tooltip("Number of columns shown in the inventory grid.")]
+    [SerializeField] private int inventoryColumns = 4;
+
     // CanvasGroup used to show/hide inventory without deactivating the GameObject
     // (deactivating stops the RecyclableScrollRect coroutine)
     private CanvasGroup _inventoryCanvasGroup;
@@ -60,6 +64,10 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
             Debug.LogError("RecyclableInventoryManager: _recyclableScrollRect is not assigned! Please assign it in the Inspector.");
             return;
         }
+
+        _recyclableScrollRect.Direction = RecyclableScrollRect.DirectionType.Vertical;
+        _recyclableScrollRect.IsGrid = true;
+        _recyclableScrollRect.Segments = Mathf.Max(2, inventoryColumns);
         _recyclableScrollRect.DataSource = this;
 
         // Set up CanvasGroup-based visibility (keeps GO active for coroutines)
@@ -155,6 +163,7 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
         _reloadPending = false;
         _reloadCoroutine = null;
 
+        Debug.Log($"RecyclableInventoryManager: ReloadData with {_invenItems.Count} items");
         _recyclableScrollRect?.ReloadData();
         OnInventoryChanged?.Invoke();
     }
@@ -165,6 +174,15 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
     public void SetLstItem(List<InvenItems> lst)
     {
         _invenItems = lst ?? new List<InvenItems>();
+        ScheduleReload();
+    }
+
+    /// <summary>
+    /// Forces a visible UI refresh without changing the inventory data.
+    /// Useful when external state such as Quickbar assignment changes.
+    /// </summary>
+    public void RefreshUI()
+    {
         ScheduleReload();
     }
     
@@ -227,6 +245,11 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
         _inventoryCanvasGroup.alpha = visible ? 1f : 0f;
         _inventoryCanvasGroup.interactable = visible;
         _inventoryCanvasGroup.blocksRaycasts = visible;
+
+        if (visible)
+        {
+            ScheduleReload();
+        }
     }
 
     /// <summary>

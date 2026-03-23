@@ -1,11 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 /// <summary>
-/// NPC that opens a shop when the player interacts (E key) within trigger range.
-/// Place on a GameObject with a BoxCollider2D (isTrigger = true).
+/// NPC that opens a shop when the player interacts within trigger range.
+/// Supports both keyboard (E key) and mouse click interaction.
 ///
 /// Phase 2.5A Fix (BP2): Provides gameplay access to ShopManager.OpenShop().
+/// Phase 3: Added mouse click support — click on NPC sprite to open shop.
 ///
 /// Setup:
 ///   1. Create GameObject with SpriteRenderer (shop keeper sprite)
@@ -24,10 +26,10 @@ public class ShopNPC : MonoBehaviour
     public KeyCode interactKey = KeyCode.E;
 
     [Tooltip("Prompt text shown when player is in range.")]
-    public string interactPrompt = "Press E to open shop";
-    
+    public string interactPrompt = "Press E or Click to open shop";
+
     [Tooltip("Vietnamese prompt text.")]
-    public string interactPromptVN = "Nhấn E để mở cửa hàng";
+    public string interactPromptVN = "Nhấn E hoặc Click để mở cửa hàng";
 
     [Header("UI References (auto-found if null)")]
     [Tooltip("Optional: reference to prompt UI text. Auto-creates if null.")]
@@ -51,7 +53,54 @@ public class ShopNPC : MonoBehaviour
         if (Input.GetKeyDown(interactKey) && !IsShopAlreadyOpen())
         {
             OpenShop();
+            return;
         }
+
+        // Mouse click on NPC to open shop
+        if (Input.GetMouseButtonDown(0) && !IsShopAlreadyOpen() && !IsPointerOverUI())
+        {
+            if (IsMouseOverThisNPC())
+            {
+                OpenShop();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks if the mouse cursor is over this NPC or any of its child colliders.
+    /// Using OverlapPointAll makes click detection reliable even when the visible
+    /// sprite/collider lives on a child object instead of the exact root object
+    /// that holds ShopNPC.
+    /// </summary>
+    private bool IsMouseOverThisNPC()
+    {
+        Vector2 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Collider2D[] hits = Physics2D.OverlapPointAll(mouseWorldPos);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider2D hit = hits[i];
+            if (hit == null)
+            {
+                continue;
+            }
+
+            Transform hitTransform = hit.transform;
+            if (hitTransform == transform || hitTransform.IsChildOf(transform) || transform.IsChildOf(hitTransform))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Prevents shop from opening when clicking on UI elements.
+    /// </summary>
+    private static bool IsPointerOverUI()
+    {
+        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
     }
 
     private void OpenShop()

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -7,15 +8,19 @@ using TMPro;
 /// Seed quickbar — horizontal slot bar showing seeds from inventory.
 /// Players press number keys (1-9) to quickly select a seed for planting.
 /// When selected, equips a SeedBag tool via EquipmentManager.
-/// The first seed is auto-selected by default when seeds exist.
+///
+/// Phase 3: Configurable quickbar — players assign seeds from inventory.
+/// If no assignments exist, falls back to auto-fill with all inventory seeds.
+/// Assignments persist via Firebase at Users/{userId}/quickbarSeeds.
 ///
 /// Subscribes to RecyclableInventoryManager.OnInventoryChanged to auto-refresh.
-///
-/// Usage: Attach to a UI panel anchored at bottom-center of Canvas,
-///        below the tool QuickbarUI.
 /// </summary>
 public class SeedQuickbarUI : MonoBehaviour
 {
+    public static SeedQuickbarUI Instance { get; private set; }
+
+    public event System.Action OnAssignmentsChanged;
+
     [Header("References")]
     [Tooltip("Parent transform for seed slots. If null, uses this transform.")]
     public Transform slotContainer;
@@ -48,6 +53,21 @@ public class SeedQuickbarUI : MonoBehaviour
     private int activeIndex = -1;
     private RecyclableInventoryManager inventoryManager;
     private CanvasGroup _canvasGroup;
+
+    // Configurable quickbar: ordered list of assigned seed itemIds
+    private List<string> _assignedSeeds = new List<string>();
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else if (Instance != this)
+        {
+            Destroy(gameObject);
+        }
+    }
 
     [System.Serializable]
     public class SeedIconEntry
@@ -91,8 +111,11 @@ public class SeedQuickbarUI : MonoBehaviour
             EquipmentManager.Instance.OnToolChanged += OnToolChanged;
         }
 
-        // Delayed initial build (inventory may not be loaded yet)
-        Invoke(nameof(RefreshSeeds), 0.5f);
+        // Load quickbar assignments from Firebase, then build slots
+        LoadQuickbarAssignments(() =>
+        {
+            Invoke(nameof(RefreshSeeds), 0.3f);
+        });
     }
 
     void Update()
@@ -183,6 +206,8 @@ public class SeedQuickbarUI : MonoBehaviour
 
     /// <summary>
     /// Refreshes seed slots from current inventory contents.
+    /// If quickbar assignments exist, shows only assigned seeds in order.
+    /// Otherwise, auto-fills with all inventory seeds (legacy behavior).
     /// </summary>
     public void RefreshSeeds()
     {
@@ -196,16 +221,146 @@ public class SeedQuickbarUI : MonoBehaviour
         }
 
         var allItems = inventoryManager.GetInventoryItems();
-        var seeds = new List<InvenItems>();
+
+        // Build lookup of available seeds in inventory
+        var seedLookup = new Dictionary<string, InvenItems>();
         foreach (var item in allItems)
         {
             if (item.itemId != null && item.itemId.StartsWith("seed_"))
             {
-                seeds.Add(item);
+                seedLookup[item.itemId] = item;
             }
         }
 
+        var seeds = new List<InvenItems>();
+
+        if (_assignedSeeds.Count > 0)
+        {
+            // Configurable mode: show only assigned seeds that still exist in inventory
+            foreach (var seedId in _assignedSeeds)
+            {
+                if (seedLookup.TryGetValue(seedId, out InvenItems seed))
+                {
+                    seeds.Add(seed);
+                }
+            }
+        }
+        else
+        {
+            // Auto-fill mode: show all seeds from inventory (legacy behavior)
+            seeds.AddRange(seedLookup.Values);
+        }
+
         BuildSlots(seeds);
+    }
+
+    // ==================== QUICKBAR ASSIGNMENT API ====================
+
+    /// <summary>
+    /// Checks if a seed is currently assigned to the quickbar.
+    /// </summary>
+    public bool IsSeedInQuickbar(string itemId)
+    {
+        return _assignedSeeds.Contains(itemId);
+    }
+
+    public int GetAssignedSlotIndex(string itemId)
+    {
+        return _assignedSeeds.IndexOf(itemId);
+    }
+
+    /// <summary>
+    /// Assigns a seed to the next available quickbar slot.
+    /// Returns false if quickbar is full or seed is already assigned.
+    /// </summary>
+    public bool AssignToQuickbar(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return false;
+        if (_assignedSeeds.Contains(itemId)) return false;
+        if (_assignedSeeds.Count >= maxSlots) return false;
+
+        _assignedSeeds.Add(itemId);
+        SaveQuickbarAssignments();
+        OnAssignmentsChanged?.Invoke();
+        RefreshSeeds();
+        return true;
+    }
+
+    /// <summary>
+    /// Removes a seed from the quickbar assignments.
+    /// </summary>
+    public void RemoveFromQuickbar(string itemId)
+    {
+        if (_assignedSeeds.Remove(itemId))
+        {
+            SaveQuickbarAssignments();
+            OnAssignmentsChanged?.Invoke();
+            RefreshSeeds();
+        }
+    }
+
+    /// <summary>
+    /// Clears all quickbar assignments (reverts to auto-fill mode).
+    /// </summary>
+    public void ClearQuickbarAssignments()
+    {
+        _assignedSeeds.Clear();
+        SaveQuickbarAssignments();
+        OnAssignmentsChanged?.Invoke();
+        RefreshSeeds();
+    }
+
+    // ==================== FIREBASE PERSISTENCE ====================
+
+    private void LoadQuickbarAssignments(System.Action onComplete = null)
+    {
+        if (LoadDataManager.firebaseUser == null)
+        {
+
+            onComplete?.Invoke();
+            return;
+        }
+
+        string userId = LoadDataManager.firebaseUser.UserId;
+        string path = $"Users/{userId}/quickbarSeeds";
+
+        FirebaseDatabaseManager.Instance?.ReadDatabase(path, (data) =>
+        {
+            if (!string.IsNullOrEmpty(data))
+            {
+                try
+                {
+                    var loaded = JsonConvert.DeserializeObject<List<string>>(data);
+                    if (loaded != null)
+                    {
+                        _assignedSeeds = loaded;
+                        Debug.Log($"SeedQuickbarUI: Loaded {_assignedSeeds.Count} quickbar assignments");
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"SeedQuickbarUI: Failed to parse quickbar assignments: {ex.Message}");
+                }
+            }
+
+
+            onComplete?.Invoke();
+        });
+    }
+
+    private void SaveQuickbarAssignments()
+    {
+        if (LoadDataManager.firebaseUser == null) return;
+
+        string userId = LoadDataManager.firebaseUser.UserId;
+        string path = $"Users/{userId}/quickbarSeeds";
+        string json = JsonConvert.SerializeObject(_assignedSeeds);
+
+        FirebaseDatabaseManager.Instance?.WriteDatabase(path, json, (success, error) =>
+        {
+            if (!success)
+                Debug.LogError($"SeedQuickbarUI: Failed to save quickbar: {error}");
+        });
     }
 
     /// <summary>
@@ -528,6 +683,10 @@ public class SeedQuickbarUI : MonoBehaviour
 
     void OnDestroy()
     {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
         if (inventoryManager != null)
         {
             inventoryManager.OnInventoryChanged -= RefreshSeeds;

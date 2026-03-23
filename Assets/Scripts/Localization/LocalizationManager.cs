@@ -46,6 +46,10 @@ public class LocalizationManager : MonoBehaviour
         { "Use", "Dùng" },
         { "Buy", "Mua" },
         { "Sell", "Bán" },
+        { "Assign Quickbar", "Gắn Quickbar" },
+        { "Remove Quickbar", "Bỏ Quickbar" },
+        { "Quickbar is full (max 9 slots).", "Quickbar đã đầy (tối đa 9 ô)." },
+        { "Quickbar not found.", "Không tìm thấy Quickbar." },
         { "Item", "Vật phẩm" },
         { "Name", "Tên" },
         { "Gender", "Giới tính" },
@@ -180,6 +184,8 @@ public class LocalizationManager : MonoBehaviour
     private static readonly Regex EnSplitRegex = new Regex(@"^Split\s+(.+)\s+\((\d+)\)$", RegexOptions.Compiled);
     private static readonly Regex EnErrorRegex = new Regex(@"^Error:\s*(.+)$", RegexOptions.Compiled);
     private static readonly Regex EnLoadDoneRegex = new Regex(@"^Load Done\s*$", RegexOptions.Compiled);
+    private static readonly Regex EnAssignedQuickbarRegex = new Regex(@"^Assigned (.+) to Quickbar!$", RegexOptions.Compiled);
+    private static readonly Regex EnRemovedQuickbarRegex = new Regex(@"^Removed (.+) from Quickbar\.$", RegexOptions.Compiled);
 
     private static readonly Regex ViGoldRegex = new Regex(@"^Vàng:\s*(\d+)$", RegexOptions.Compiled);
     private static readonly Regex ViDiamondRegex = new Regex(@"^Kim cương:\s*(\d+)$", RegexOptions.Compiled);
@@ -191,6 +197,8 @@ public class LocalizationManager : MonoBehaviour
     private static readonly Regex ViSplitRegex = new Regex(@"^Tách\s+(.+)\s+\((\d+)\)$", RegexOptions.Compiled);
     private static readonly Regex ViErrorRegex = new Regex(@"^Lỗi:\s*(.+)$", RegexOptions.Compiled);
     private static readonly Regex ViLoadDoneRegex = new Regex(@"^Đã tải xong\s*$", RegexOptions.Compiled);
+    private static readonly Regex ViAssignedQuickbarRegex = new Regex(@"^Đã gắn (.+) vào Quickbar!$", RegexOptions.Compiled);
+    private static readonly Regex ViRemovedQuickbarRegex = new Regex(@"^Đã bỏ (.+) khỏi Quickbar\.$", RegexOptions.Compiled);
 
     private void Awake()
     {
@@ -319,6 +327,12 @@ public class LocalizationManager : MonoBehaviour
         match = EnLoadDoneRegex.Match(input);
         if (match.Success) return "Đã tải xong";
 
+        match = EnAssignedQuickbarRegex.Match(input);
+        if (match.Success) return $"Đã gắn {match.Groups[1].Value} vào Quickbar!";
+
+        match = EnRemovedQuickbarRegex.Match(input);
+        if (match.Success) return $"Đã bỏ {match.Groups[1].Value} khỏi Quickbar.";
+
         return input;
     }
 
@@ -362,6 +376,12 @@ public class LocalizationManager : MonoBehaviour
 
         match = ViLoadDoneRegex.Match(input);
         if (match.Success) return "Load Done";
+
+        match = ViAssignedQuickbarRegex.Match(input);
+        if (match.Success) return $"Assigned {match.Groups[1].Value} to Quickbar!";
+
+        match = ViRemovedQuickbarRegex.Match(input);
+        if (match.Success) return $"Removed {match.Groups[1].Value} from Quickbar.";
 
         return input;
     }

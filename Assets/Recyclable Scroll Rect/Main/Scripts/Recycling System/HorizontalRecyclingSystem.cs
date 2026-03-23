@@ -125,7 +125,17 @@ namespace PolyAndCode.UI
 
             //set new cell size according to its aspect ratio
             _cellHeight = Content.rect.height / _rows;
-            _cellWidth = PrototypeCell.sizeDelta.x / PrototypeCell.sizeDelta.y * _cellHeight;
+
+            // Guard against invalid prototype sizes. A zero-height prototype cell
+            // would otherwise produce Infinity/NaN sizing and break the scroll view.
+            float prototypeHeight = Mathf.Abs(PrototypeCell.sizeDelta.y) > 0.01f
+                ? PrototypeCell.sizeDelta.y
+                : Mathf.Max(PrototypeCell.rect.height, 1f);
+            float prototypeWidth = Mathf.Abs(PrototypeCell.sizeDelta.x) > 0.01f
+                ? PrototypeCell.sizeDelta.x
+                : Mathf.Max(PrototypeCell.rect.width, 66f);
+
+            _cellWidth = prototypeWidth / prototypeHeight * _cellHeight;
 
             //Reset
             _leftMostCellRow = _RightMostCellRow = 0;

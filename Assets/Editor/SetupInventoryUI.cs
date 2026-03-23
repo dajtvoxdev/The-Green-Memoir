@@ -69,7 +69,9 @@ public static class SetupInventoryUI
 
         var cellGO = new GameObject("InventoryCell");
         var cellRT = cellGO.AddComponent<RectTransform>();
-        cellRT.sizeDelta = new Vector2(0, 60);
+        // RecyclableScrollRect computes row height from prototype aspect ratio.
+        // Use a square prototype so the inventory displays as a clean grid.
+        cellRT.sizeDelta = new Vector2(84, 84);
 
         var bg = cellGO.AddComponent<Image>();
         bg.color = new Color(0.15f, 0.1f, 0.05f, 0.85f);

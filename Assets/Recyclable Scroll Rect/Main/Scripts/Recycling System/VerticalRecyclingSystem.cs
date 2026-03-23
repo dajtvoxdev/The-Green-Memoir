@@ -146,7 +146,18 @@ namespace PolyAndCode.UI
 
             //set new cell size according to its aspect ratio
             _cellWidth = Content.rect.width / _coloumns;
-            _cellHeight = PrototypeCell.sizeDelta.y / PrototypeCell.sizeDelta.x * _cellWidth;
+
+            // Guard against invalid prototype sizes. A zero-width prototype cell
+            // causes division-by-zero here, which then corrupts Content with
+            // Infinity/NaN and makes the inventory appear empty.
+            float prototypeWidth = Mathf.Abs(PrototypeCell.sizeDelta.x) > 0.01f
+                ? PrototypeCell.sizeDelta.x
+                : Mathf.Max(PrototypeCell.rect.width, 1f);
+            float prototypeHeight = Mathf.Abs(PrototypeCell.sizeDelta.y) > 0.01f
+                ? PrototypeCell.sizeDelta.y
+                : Mathf.Max(PrototypeCell.rect.height, 66f);
+
+            _cellHeight = prototypeHeight / prototypeWidth * _cellWidth;
 
             //Get the required pool coverage and mininum size for the Cell pool
             float requriedCoverage = MinPoolCoverage * Viewport.rect.height;

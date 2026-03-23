@@ -21,11 +21,13 @@ public class InventoryActionPanel : MonoBehaviour
     public Button equipButton;
     public Button dropButton;
     public Button splitButton;
+    public Button quickbarButton;
     public Button closeButton;
 
     [Header("Button Texts (auto-found if null)")]
     public TMP_Text useButtonText;
     public TMP_Text equipButtonText;
+    public TMP_Text quickbarButtonText;
 
     private CanvasGroup canvasGroup;
     private InvenItems selectedItem;
@@ -64,6 +66,7 @@ public class InventoryActionPanel : MonoBehaviour
         if (equipButton != null) equipButton.onClick.AddListener(OnEquipClicked);
         if (dropButton != null) dropButton.onClick.AddListener(OnDropClicked);
         if (splitButton != null) splitButton.onClick.AddListener(OnSplitClicked);
+        if (quickbarButton != null) quickbarButton.onClick.AddListener(OnQuickbarClicked);
         if (closeButton != null) closeButton.onClick.AddListener(Hide);
     }
 
@@ -112,13 +115,14 @@ public class InventoryActionPanel : MonoBehaviour
     private void ConfigureButtons(InvenItems item)
     {
         string type = item.itemType?.ToLower() ?? "";
+        bool isSeed = type == "seed" || (item.itemId != null && item.itemId.StartsWith("seed_"));
 
         // Use button: consumables, seeds
-        bool canUse = type == "consumable" || type == "seed";
+        bool canUse = type == "consumable" || isSeed;
         if (useButton != null) useButton.gameObject.SetActive(canUse);
         if (canUse && useButtonText != null)
         {
-            useButtonText.text = type == "seed"
+            useButtonText.text = isSeed
                 ? LocalizationManager.LocalizeText("Plant")
                 : LocalizationManager.LocalizeText("Use");
         }
@@ -126,6 +130,20 @@ public class InventoryActionPanel : MonoBehaviour
         // Equip button: tools
         bool canEquip = type == "tool";
         if (equipButton != null) equipButton.gameObject.SetActive(canEquip);
+
+        // Quickbar button: seeds only — assigns to next available quickbar slot
+        if (quickbarButton != null)
+        {
+            quickbarButton.gameObject.SetActive(isSeed);
+            if (isSeed && quickbarButtonText != null)
+            {
+                var quickbar = FindObjectOfType<SeedQuickbarUI>();
+                bool isAssigned = quickbar != null && quickbar.IsSeedInQuickbar(item.itemId);
+                quickbarButtonText.text = isAssigned
+                    ? LocalizationManager.LocalizeText("Remove Quickbar")
+                    : LocalizationManager.LocalizeText("Assign Quickbar");
+            }
+        }
 
         // Drop button: always available
         if (dropButton != null) dropButton.gameObject.SetActive(true);
@@ -206,6 +224,50 @@ public class InventoryActionPanel : MonoBehaviour
         NotificationManager.Instance?.ShowNotification(
             LocalizationManager.LocalizeText($"Ready to plant {seedItem.name}! Press E or V to plant."), 2f);
         AudioManager.Instance?.PlaySFX("equip");
+    }
+
+    /// <summary>
+    /// Quickbar action: toggle seed assignment to quickbar.
+    /// </summary>
+    private void OnQuickbarClicked()
+    {
+        if (selectedItem == null) return;
+
+        var quickbar = FindObjectOfType<SeedQuickbarUI>();
+        if (quickbar == null)
+        {
+            NotificationManager.Instance?.ShowNotification(
+                LocalizationManager.LocalizeText("Quickbar not found."), 1.5f);
+            Hide();
+            return;
+        }
+
+        bool isAssigned = quickbar.IsSeedInQuickbar(selectedItem.itemId);
+        if (isAssigned)
+        {
+            quickbar.RemoveFromQuickbar(selectedItem.itemId);
+            NotificationManager.Instance?.ShowNotification(
+                LocalizationManager.LocalizeText($"Removed {selectedItem.name} from Quickbar."), 1.5f);
+        }
+        else
+        {
+            bool added = quickbar.AssignToQuickbar(selectedItem.itemId);
+            if (added)
+            {
+                NotificationManager.Instance?.ShowNotification(
+                    LocalizationManager.LocalizeText($"Assigned {selectedItem.name} to Quickbar!"), 1.5f);
+            }
+            else
+            {
+                NotificationManager.Instance?.ShowNotification(
+                    LocalizationManager.LocalizeText("Quickbar is full (max 9 slots)."), 1.5f);
+            }
+        }
+
+        AudioManager.Instance?.PlaySFX("ui_click");
+        FindInventoryManager()?.RefreshUI();
+        OnInventoryAction?.Invoke();
+        Hide();
     }
 
     /// <summary>
