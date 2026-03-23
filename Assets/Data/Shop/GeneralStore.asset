@@ -124,3 +124,111 @@ MonoBehaviour:
     available: 1
     maxStock: -1
     currentStock: 0
+  - item: {fileID: 11400000, guid: 855edee6b15f50148a3172e4ae3ab24e, type: 2}
+    buyPrice: 0
+    sellPrice: 10
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: f9f15a59c48d2974691e568b99d4667a, type: 2}
+    buyPrice: 0
+    sellPrice: 35
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: 4f7a3556cd012a247a457602eb81b0b1, type: 2}
+    buyPrice: 0
+    sellPrice: 18
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: bca41e1f0a2038f4c9efc81fa1bbbbe9, type: 2}
+    buyPrice: 0
+    sellPrice: 28
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: d955ce48d4c92b748bce9dbd3305bb4c, type: 2}
+    buyPrice: 0
+    sellPrice: 12
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: 0ae77894cf4be6b47bc5ecba9154affc, type: 2}
+    buyPrice: 0
+    sellPrice: 22
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: 03f6c8e7fa3e1b24db9c613225bb02ae, type: 2}
+    buyPrice: 0
+    sellPrice: 120
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: fdc37625c178ff543aeb0326fa5f32c4, type: 2}
+    buyPrice: 0
+    sellPrice: 32
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: 09678151441d68840872760fa31875e0, type: 2}
+    buyPrice: 0
+    sellPrice: 55
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: 246801afc585150459529f3ce402c10e, type: 2}
+    buyPrice: 0
+    sellPrice: 200
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: 7b3a29bf21d4eba4c821f0baeb7e5ee6, type: 2}
+    buyPrice: 0
+    sellPrice: 20
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: d68dffb602f0bb84fbd0f30bdb1eec23, type: 2}
+    buyPrice: 0
+    sellPrice: 16
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: 8be0320d78522444b81eb80857110005, type: 2}
+    buyPrice: 0
+    sellPrice: 65
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: a91c71950a952d0418b55f5a47f47dee, type: 2}
+    buyPrice: 0
+    sellPrice: 150
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: 5657b0b9f3601184ca54f75bc050c062, type: 2}
+    buyPrice: 0
+    sellPrice: 45
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: f2f6369adc46f18428e83bb07ce4f232, type: 2}
+    buyPrice: 0
+    sellPrice: 30
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: 0ee8afade5aa6dc4698689a28e200779, type: 2}
+    buyPrice: 0
+    sellPrice: 75
+    available: 1
+    maxStock: -1
+    currentStock: 0
+  - item: {fileID: 11400000, guid: d71d9e19532a06f40824502eaa7aecb3, type: 2}
+    buyPrice: 0
+    sellPrice: 15
+    available: 1
+    maxStock: -1
+    currentStock: 0

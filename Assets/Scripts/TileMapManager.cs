@@ -89,7 +89,7 @@ public class TileMapManager : MonoBehaviour
     {
         databaseManager = GameObject.Find("DatabaseManager")?.GetComponent<FirebaseDatabaseManager>();
         transactionManager = GameObject.Find("DatabaseManager")?.GetComponent<FirebaseTransactionManager>();
-        
+
         FirebaseApp app = FirebaseApp.DefaultInstance;
         reference = FirebaseDatabase.DefaultInstance.RootReference;
 
@@ -104,6 +104,48 @@ public class TileMapManager : MonoBehaviour
             Debug.Log("TileMapManager: No existing map data, creating new map");
             WriteAllTileMapFireBase();
         }
+
+        // Fix: Refresh all tilemap chunks after async scene load.
+        // Without this, tiles may not render when entering PlayScene
+        // from LoginScene via LoadSceneAsync.
+        RefreshAllTilemaps();
+    }
+
+    /// <summary>
+    /// Forces all tilemaps to refresh their visual tiles.
+    /// Fixes rendering issues caused by async scene loading
+    /// where tilemap chunks may not be properly initialized.
+    /// </summary>
+    private void RefreshAllTilemaps()
+    {
+        if (tm_Ground != null)
+        {
+            tm_Ground.CompressBounds();
+            tm_Ground.RefreshAllTiles();
+        }
+        if (tm_Grass != null)
+        {
+            tm_Grass.CompressBounds();
+            tm_Grass.RefreshAllTiles();
+        }
+        if (tm_Forest != null)
+        {
+            tm_Forest.CompressBounds();
+            tm_Forest.RefreshAllTiles();
+        }
+
+        // Also refresh any other tilemaps in the scene (e.g. Water/River)
+        Tilemap[] allTilemaps = FindObjectsByType<Tilemap>(FindObjectsSortMode.None);
+        foreach (var tm in allTilemaps)
+        {
+            if (tm != tm_Ground && tm != tm_Grass && tm != tm_Forest)
+            {
+                tm.CompressBounds();
+                tm.RefreshAllTiles();
+            }
+        }
+
+        Debug.Log($"TileMapManager: Refreshed {allTilemaps.Length} tilemaps");
     }
 
     /// <summary>

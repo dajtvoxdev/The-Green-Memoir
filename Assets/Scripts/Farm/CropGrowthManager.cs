@@ -370,14 +370,34 @@ public class CropGrowthManager : MonoBehaviour
         // Roll yield quantity
         int yield = cropDef.RollYield();
 
-        // Create the harvested inventory item
+        // Create the harvested inventory item.
+        // Try to use the formal ItemDefinition for proper icon/name/description,
+        // falling back to CropDefinition data if no asset exists.
+        string harvestId = cropDef.harvestItemId;
+        string itemName = cropDef.cropName;
+        string itemDesc = $"{cropDef.cropName} thu hoạch tươi ngon.";
+        string iconName = cropDef.cropName.ToLower().Replace(" ", "_");
+
+        var harvestDef = Resources.FindObjectsOfTypeAll<ItemDefinition>();
+        foreach (var def in harvestDef)
+        {
+            if (def.itemId == harvestId)
+            {
+                itemName = def.itemName;
+                itemDesc = def.description;
+                if (def.icon != null)
+                    iconName = def.icon.name;
+                break;
+            }
+        }
+
         InvenItems harvestedItem = new InvenItems(
-            itemId: cropDef.harvestItemId,
-            name: cropDef.cropName,
-            description: $"Freshly harvested {cropDef.cropName}",
+            itemId: harvestId,
+            name: itemName,
+            description: itemDesc,
             quantity: yield,
             itemType: "Crop",
-            iconName: cropDef.cropName.ToLower().Replace(" ", "_")
+            iconName: iconName
         );
 
         // Handle regrowable vs one-time crops

@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55f07867edc67d64c9f085786e0d237b, type: 3}
+  m_Name: crop_garlic
+  m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
+  itemId: crop_garlic
+  itemName: "T\u1ECFi"
+  description: "T\u1ECFi thu ho\u1EA1ch t\u01B0\u01A1i ngon."
+  itemType: 1
+  icon: {fileID: 21300000, guid: 615daf0befb80184cb7e9c1a2c80cdc6, type: 3}
+  stackable: 1
+  maxStack: 99
+  buyPrice: 0
+  sellPrice: 55
+  cropId: garlic
+  yieldMin: 2
+  yieldMax: 4

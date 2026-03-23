@@ -1,35 +1,42 @@
+using System;
+using System.Collections;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
 using Firebase.Auth;
+using Firebase.Database;
 using Firebase.Extensions;
+using Newtonsoft.Json.Linq;
+using TMPro;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using TMPro;
 
 public class FirebaseLoginManager : MonoBehaviour
 {
-    //Dang Ki
     [Header("Register")]
     public InputField ipRegisterEmail;
     public InputField ipRegisterPassword;
-
     public Button buttonRegister;
 
-    //Dang nhap
     [Header("Sign In")]
     public InputField ipLoginEmail;
     public InputField ipLoginPassword;
-
     public Button buttonLogin;
 
-    private FirebaseAuth auth;
-
-    //Dang nhap nhanh: Google va Choi Ngay (Anonymous)
     [Header("Quick Login")]
     public Button buttonLoginGoogle;
-    public Button buttonPlayNow;
 
-    //Chuyen doi qua lai giua dang ki va dang nhap
-    [Header("Switch from")]
+    [Header("Google OAuth (Desktop)")]
+    [Tooltip("Desktop App OAuth Client ID from Google Cloud Console")]
+    public string googleClientId = "";
+
+    [Tooltip("Used only during token exchange for Google OAuth in the current project setup.")]
+    public string googleClientSecret = "";
+
+    [Header("Switch form")]
     public Button buttonMoveToSignIn;
     public Button buttonMoveToRegister;
 
@@ -40,24 +47,43 @@ public class FirebaseLoginManager : MonoBehaviour
     [Tooltip("Text element to show login/register error messages.")]
     public TMP_Text statusText;
 
-    //Upload data User to Firebase when register
+    [Header("Release Sync")]
+    [Tooltip("Endpoint on the web repo that returns the current release manifest.")]
+    public string releaseManifestUrl = "https://the-green-memoir-web.vercel.app/api/game/release";
+
+    [Tooltip("When enabled, the login scene fetches the latest release info from the website.")]
+    public bool checkLatestReleaseOnStart = true;
+
+    [Header("Auto-Update")]
+    [Tooltip("Reference to the UpdatePromptUI panel in the scene.")]
+    public UpdatePromptUI updatePromptUI;
+
+    private FirebaseAuth auth;
     private FirebaseDatabaseManager databaseManager;
+    private DatabaseReference databaseReference;
+    private GameReleaseManifest latestRelease;
+
     private void Start()
     {
         auth = FirebaseAuth.DefaultInstance;
         buttonRegister.onClick.AddListener(RegisterAccountWithFireBase);
         buttonLogin.onClick.AddListener(SignInAccountWithFireBase);
 
-        //Dang nhap nhanh
         if (buttonLoginGoogle != null)
+        {
             buttonLoginGoogle.onClick.AddListener(SignInWithGoogle);
-        if (buttonPlayNow != null)
-            buttonPlayNow.onClick.AddListener(SignInAnonymously);
+        }
 
         buttonMoveToSignIn.onClick.AddListener(SwitchForm);
         buttonMoveToRegister.onClick.AddListener(SwitchForm);
 
         databaseManager = GetComponent<FirebaseDatabaseManager>();
+        databaseReference = FirebaseDatabase.DefaultInstance.RootReference;
+
+        if (checkLatestReleaseOnStart)
+        {
+            StartCoroutine(FetchLatestReleaseManifest());
+        }
     }
 
     public void RegisterAccountWithFireBase()
@@ -95,25 +121,21 @@ public class FirebaseLoginManager : MonoBehaviour
                 return;
             }
 
-            if (task.IsCompleted)
+            if (!task.IsCompleted)
             {
-                ShowStatus("Đăng ký thành công!", new Color(0.3f, 1f, 0.3f));
-
-
-                Map mapInGame = new Map();
-                User userInGame = new User("", 100, 50, mapInGame);
-
-                FirebaseUser firebaseUser = task.Result.User;
-                Debug.Log("Firebase user: " + firebaseUser);
-
-                SeedNewUserProfile(firebaseUser, userInGame);
-
-                SceneManager.LoadScene("AsyncLoadingScene");
-
-                //FirebaseUser userLog = task.Result.User;
-                //Debug.Log("UID: " + userLog.UserId);
-                //Debug.Log("Email: " + userLog.Email);
+                return;
             }
+
+            ShowStatus("Đăng ký thành công! Đang kiểm tra quyền truy cập...", new Color(0.3f, 1f, 0.3f));
+
+            Map mapInGame = new Map();
+            User userInGame = new User("", 100, 50, mapInGame);
+
+            FirebaseUser firebaseUser = task.Result.User;
+            Debug.Log("Firebase user: " + firebaseUser);
+
+            SeedNewUserProfile(firebaseUser, userInGame);
+            StartCoroutine(ValidateLatestVersionAndEnter(firebaseUser));
         });
     }
 
@@ -146,15 +168,17 @@ public class FirebaseLoginManager : MonoBehaviour
                 return;
             }
 
-            if (task.IsCompleted)
+            if (!task.IsCompleted)
             {
-                Debug.Log("Dang nhap thanh cong");
-                FirebaseUser user = task.Result.User;
-                Debug.Log("UID: " + user.UserId);
-
-                ShowStatus("Đăng nhập thành công!", new Color(0.3f, 1f, 0.3f));
-                SceneManager.LoadScene("AsyncLoadingScene");
+                return;
             }
+
+            Debug.Log("Đăng nhập thành công");
+            FirebaseUser user = task.Result.User;
+            Debug.Log("UID: " + user.UserId);
+
+            ShowStatus("Đăng nhập thành công! Đang kiểm tra phiên bản...", new Color(0.3f, 1f, 0.3f));
+            StartCoroutine(ValidateLatestVersionAndEnter(user));
         });
     }
 
@@ -164,171 +188,466 @@ public class FirebaseLoginManager : MonoBehaviour
         registerForm.SetActive(!registerForm.activeSelf);
     }
 
-    /// <summary>
-    /// Đăng nhập ẩn danh (Chơi Ngay) - không cần email/password.
-    /// Firebase tự tạo UID tạm cho người chơi.
-    /// </summary>
-    public void SignInAnonymously()
-    {
-        Debug.Log("Dang nhap an danh (Choi Ngay)...");
-        auth.SignInAnonymouslyAsync().ContinueWithOnMainThread(task =>
-        {
-            if (task.IsCanceled)
-            {
-                Debug.Log("Dang nhap an danh bi huy");
-                return;
-            }
-
-            if (task.IsFaulted)
-            {
-                Debug.Log("Dang nhap an danh that bai");
-                Debug.Log(task.Exception);
-                return;
-            }
-
-            if (task.IsCompleted)
-            {
-                Debug.Log("Dang nhap an danh thanh cong!");
-                FirebaseUser user = task.Result.User;
-                Debug.Log("Anonymous UID: " + user.UserId);
-
-                // Tạo dữ liệu mặc định cho người chơi ẩn danh
-                Map mapInGame = new Map();
-                User userInGame = new User("", 100, 50, mapInGame);
-                SeedNewUserProfile(user, userInGame);
-
-                SceneManager.LoadScene("AsyncLoadingScene");
-            }
-        });
-    }
-
-    /// <summary>
-    /// Đăng nhập bằng Google.
-    /// Sử dụng Firebase Auth + Google Provider.
-    /// Trên Android: gọi Google Play Services để lấy ID Token.
-    /// Trên Editor: chỉ log hướng dẫn.
-    /// </summary>
     public void SignInWithGoogle()
     {
-        Debug.Log("Bắt đầu đăng nhập Google...");
+        if (string.IsNullOrEmpty(googleClientId))
+        {
+            ShowStatus("Chưa cấu hình Google Desktop Client ID.", Color.red);
+            return;
+        }
 
-#if UNITY_ANDROID && !UNITY_EDITOR
-        // Gọi Google Sign-In trên Android thông qua Firebase Auth UI
-        // Cần cấu hình Web Client ID trong Firebase Console → Authentication → Sign-in method → Google
-        StartCoroutine(GoogleSignInCoroutine());
-#else
-        // Trên Editor/Desktop: Firebase Google Sign-In không hỗ trợ popup trực tiếp.
-        // Sử dụng đăng nhập ẩn danh làm fallback cho testing.
-        Debug.Log("Google Sign-In chỉ hoạt động trên Android/iOS.");
-        Debug.Log("Dùng đăng nhập ẩn danh để test thay thế...");
-        SignInAnonymously();
-#endif
+        ShowStatus("Đang mở trình duyệt để đăng nhập Google...", Color.white);
+        StartCoroutine(GoogleOAuthDesktopFlow());
     }
 
-#if UNITY_ANDROID && !UNITY_EDITOR
-    /// <summary>
-    /// Coroutine xử lý Google Sign-In trên Android.
-    /// Gọi Google Play Services → lấy ID Token → tạo Firebase Credential → đăng nhập.
-    /// </summary>
-    private System.Collections.IEnumerator GoogleSignInCoroutine()
+    private IEnumerator GoogleOAuthDesktopFlow()
     {
-        // Web Client ID từ Firebase Console → Authentication → Sign-in method → Google
-        // Lấy từ google-services.json mục oauth_client → client_type=3 (web)
-        string webClientId = "984351192548-ao3t6cbqjtmnq7qt37etq02cgj05ulvv.apps.googleusercontent.com";
+        int port = FindAvailablePort();
+        string redirectUri = $"http://127.0.0.1:{port}/";
+        string state = Guid.NewGuid().ToString("N");
+        string codeVerifier = GenerateCodeVerifier();
+        string codeChallenge = GenerateCodeChallenge(codeVerifier);
 
-        // Kiểm tra Web Client ID đã cấu hình chưa
-        if (webClientId.StartsWith("YOUR_"))
+        string authUrl = "https://accounts.google.com/o/oauth2/v2/auth"
+            + $"?client_id={Uri.EscapeDataString(googleClientId)}"
+            + $"&redirect_uri={Uri.EscapeDataString(redirectUri)}"
+            + "&response_type=code"
+            + "&scope=openid%20email%20profile"
+            + $"&state={state}"
+            + "&code_challenge_method=S256"
+            + $"&code_challenge={Uri.EscapeDataString(codeChallenge)}"
+            + "&access_type=offline"
+            + "&prompt=select_account";
+
+        string authCode = null;
+        string receivedState = null;
+        bool listenerDone = false;
+        bool listenerError = false;
+
+        Thread listenerThread = new Thread(() =>
         {
-            Debug.LogError("Chua cau hinh Web Client ID! Vao Firebase Console → Authentication → Google → lay Web Client ID.");
-            Debug.LogError("Sau do paste vao bien webClientId trong FirebaseLoginManager.cs");
-            yield break;
-        }
-
-        bool signInCompleted = false;
-        string idToken = null;
-        string errorMsg = null;
-
-        // Gọi Google Sign-In trên Android bằng GoogleSignInOptions + GoogleSignInClient
-        try
-        {
-            using (var googleSignInOptions = new AndroidJavaObject(
-                "com.google.android.gms.auth.api.signin.GoogleSignInOptions$Builder",
-                new AndroidJavaObject("com.google.android.gms.auth.api.signin.GoogleSignInOptions",
-                    "DEFAULT_SIGN_IN")))
+            HttpListener listener = null;
+            try
             {
-                googleSignInOptions.Call<AndroidJavaObject>("requestIdToken", webClientId);
-                googleSignInOptions.Call<AndroidJavaObject>("requestEmail");
-                var options = googleSignInOptions.Call<AndroidJavaObject>("build");
+                listener = new HttpListener();
+                listener.Prefixes.Add(redirectUri);
+                listener.Start();
 
-                using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
-                using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
-                using (var googleSignInClient = new AndroidJavaClass(
-                    "com.google.android.gms.auth.api.signin.GoogleSignIn")
-                    .CallStatic<AndroidJavaObject>("getClient", activity, options))
+                IAsyncResult result = listener.BeginGetContext(null, null);
+                if (result.AsyncWaitHandle.WaitOne(120000))
                 {
-                    var signInIntent = googleSignInClient.Call<AndroidJavaObject>("getSignInIntent");
-                    activity.Call("startActivityForResult", signInIntent, 9001);
+                    HttpListenerContext context = listener.EndGetContext(result);
+                    authCode = context.Request.QueryString["code"];
+                    receivedState = context.Request.QueryString["state"];
+                    string error = context.Request.QueryString["error"];
+
+                    string responseHtml;
+                    if (!string.IsNullOrEmpty(authCode))
+                    {
+                        responseHtml =
+                            "<html><body style='font-family:sans-serif;text-align:center;padding:50px;background:#1a1a2e;color:#e0e0e0;'>" +
+                            "<h2 style='color:#4ecca3;'>Đăng nhập thành công!</h2>" +
+                            "<p>Bạn có thể đóng tab này và quay lại game.</p></body></html>";
+                    }
+                    else
+                    {
+                        responseHtml =
+                            "<html><body style='font-family:sans-serif;text-align:center;padding:50px;background:#1a1a2e;color:#e0e0e0;'>" +
+                            $"<h2 style='color:#e74c3c;'>Đăng nhập thất bại</h2><p>{error ?? "Lỗi không xác định"}</p></body></html>";
+                        listenerError = true;
+                    }
+
+                    byte[] buffer = System.Text.Encoding.UTF8.GetBytes(responseHtml);
+                    context.Response.ContentLength64 = buffer.Length;
+                    context.Response.ContentType = "text/html; charset=utf-8";
+                    context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                    context.Response.Close();
+                }
+                else
+                {
+                    listenerError = true;
                 }
             }
-        }
-        catch (System.Exception ex)
+            catch (Exception ex)
+            {
+                Debug.LogError($"Google OAuth listener error: {ex.Message}");
+                listenerError = true;
+            }
+            finally
+            {
+                try
+                {
+                    listener?.Stop();
+                }
+                catch
+                {
+                }
+
+                listenerDone = true;
+            }
+        });
+
+        listenerThread.IsBackground = true;
+        listenerThread.Start();
+
+        Application.OpenURL(authUrl);
+
+        ShowStatus("Đang chờ đăng nhập từ trình duyệt...", Color.white);
+        float timeout = 120f;
+        while (!listenerDone && timeout > 0)
         {
-            Debug.LogError("Google Sign-In Android error: " + ex.Message);
-            Debug.Log("Fallback: dùng đăng nhập ẩn danh...");
-            SignInAnonymously();
+            timeout -= Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (listenerError || string.IsNullOrEmpty(authCode))
+        {
+            ShowStatus("Đăng nhập Google bị hủy hoặc hết thời gian.", Color.yellow);
             yield break;
         }
 
-        // Chờ xử lý kết quả (sẽ cần ActivityResult handler)
-        // Trong trường hợp đơn giản, fallback sang Anonymous
-        Debug.Log("Google Sign-In: Đang chờ kết quả từ Google...");
-        yield return new UnityEngine.WaitForSeconds(3f);
-
-        if (idToken != null)
+        if (receivedState != state)
         {
-            // Tạo Firebase Credential từ Google ID Token
-            Firebase.Auth.Credential credential =
-                Firebase.Auth.GoogleAuthProvider.GetCredential(idToken, null);
+            ShowStatus("Lỗi bảo mật: state không khớp.", Color.red);
+            yield break;
+        }
+
+        ShowStatus("Đang xác thực với Google...", Color.white);
+        yield return StartCoroutine(ExchangeCodeForToken(authCode, redirectUri, codeVerifier));
+    }
+
+    private IEnumerator ExchangeCodeForToken(string code, string redirectUri, string codeVerifier)
+    {
+        WWWForm form = new WWWForm();
+        form.AddField("code", code);
+        form.AddField("client_id", googleClientId);
+        if (!string.IsNullOrWhiteSpace(googleClientSecret))
+        {
+            form.AddField("client_secret", googleClientSecret);
+        }
+        form.AddField("redirect_uri", redirectUri);
+        form.AddField("code_verifier", codeVerifier);
+        form.AddField("grant_type", "authorization_code");
+
+        using (UnityWebRequest request = UnityWebRequest.Post("https://oauth2.googleapis.com/token", form))
+        {
+            yield return request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                ShowStatus("Lỗi xác thực Google. Thử lại sau.", Color.red);
+                Debug.LogError($"Token exchange failed: {request.error}\n{request.downloadHandler.text}");
+                yield break;
+            }
+
+            string json = request.downloadHandler.text;
+            string idToken = ExtractJsonValue(json, "id_token");
+            string accessToken = ExtractJsonValue(json, "access_token");
+
+            if (string.IsNullOrEmpty(idToken) && string.IsNullOrEmpty(accessToken))
+            {
+                ShowStatus("Không nhận được token hợp lệ từ Google.", Color.red);
+                Debug.LogError($"No usable token in response: {json}");
+                yield break;
+            }
+
+            ShowStatus("Đang đăng nhập vào game...", Color.white);
+            Credential credential = GoogleAuthProvider.GetCredential(
+                string.IsNullOrEmpty(idToken) ? null : idToken,
+                string.IsNullOrEmpty(accessToken) ? null : accessToken);
 
             auth.SignInWithCredentialAsync(credential).ContinueWithOnMainThread(task =>
             {
                 if (task.IsFaulted || task.IsCanceled)
                 {
-                    Debug.LogError("Firebase Google Sign-In that bai: " + task.Exception);
+                    string errorMsg = task.Exception != null ? ParseFirebaseError(task.Exception) : "Đăng nhập thất bại.";
+                    ShowStatus(errorMsg, Color.red);
+                    Debug.LogError($"Firebase Google Sign-In failed: {task.Exception}");
                     return;
                 }
 
-                Debug.Log("Dang nhap Google thanh cong!");
-                FirebaseUser user = task.Result.User;
-                Debug.Log("Google UID: " + user.UserId);
-                Debug.Log("Google Email: " + user.Email);
+                FirebaseUser user = auth.CurrentUser;
+                Debug.Log($"Google Sign-In success! UID: {user.UserId}, Email: {user.Email}");
 
-                // Tạo dữ liệu mặc định cho người chơi
+                ShowStatus("Đăng nhập Google thành công! Đang kiểm tra quyền truy cập...", new Color(0.3f, 1f, 0.3f));
+
                 Map mapInGame = new Map();
                 User userInGame = new User(user.DisplayName ?? "", 100, 50, mapInGame);
                 SeedNewUserProfile(user, userInGame);
 
-                SceneManager.LoadScene("AsyncLoadingScene");
+                StartCoroutine(ValidateLatestVersionAndEnter(user));
             });
         }
-        else
+    }
+
+    private int FindAvailablePort()
+    {
+        System.Net.Sockets.TcpListener listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
+    private string ExtractJsonValue(string json, string key)
+    {
+        string pattern = $"\"{key}\"";
+        int keyIndex = json.IndexOf(pattern, StringComparison.Ordinal);
+        if (keyIndex < 0)
         {
-            Debug.Log("Khong lay duoc Google ID Token. Fallback: dang nhap an danh.");
-            SignInAnonymously();
+            return null;
+        }
+
+        int colonIndex = json.IndexOf(':', keyIndex + pattern.Length);
+        if (colonIndex < 0)
+        {
+            return null;
+        }
+
+        int startQuote = json.IndexOf('"', colonIndex + 1);
+        if (startQuote < 0)
+        {
+            return null;
+        }
+
+        int endQuote = json.IndexOf('"', startQuote + 1);
+        if (endQuote < 0)
+        {
+            return null;
+        }
+
+        return json.Substring(startQuote + 1, endQuote - startQuote - 1);
+    }
+
+    private string GenerateCodeVerifier()
+    {
+        const string allowedChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~";
+        const int verifierLength = 64;
+        StringBuilder builder = new StringBuilder(verifierLength);
+        byte[] randomBytes = new byte[verifierLength];
+        RandomNumberGenerator.Fill(randomBytes);
+
+        for (int i = 0; i < verifierLength; i++)
+        {
+            builder.Append(allowedChars[randomBytes[i] % allowedChars.Length]);
+        }
+
+        return builder.ToString();
+    }
+
+    private string GenerateCodeChallenge(string codeVerifier)
+    {
+        using (SHA256 sha256 = SHA256.Create())
+        {
+            byte[] hash = sha256.ComputeHash(Encoding.ASCII.GetBytes(codeVerifier));
+            return Base64UrlEncode(hash);
         }
     }
-#endif
 
-    /// <summary>
-    /// Shows a status message on the login UI.
-    /// </summary>
+    private string Base64UrlEncode(byte[] bytes)
+    {
+        return Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private IEnumerator LoadSceneAfterDelay(string sceneName, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        SceneManager.LoadScene(sceneName);
+    }
+
+    private IEnumerator FetchLatestReleaseManifest()
+    {
+        if (string.IsNullOrWhiteSpace(releaseManifestUrl))
+        {
+            latestRelease = null;
+            yield break;
+        }
+
+        latestRelease = null;
+
+        using (UnityWebRequest request = UnityWebRequest.Get(releaseManifestUrl))
+        {
+            yield return request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogWarning($"Game release manifest fetch failed: {request.error}");
+                yield break;
+            }
+
+            string json = request.downloadHandler.text;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                yield break;
+            }
+
+            try
+            {
+                latestRelease = JsonUtility.FromJson<GameReleaseManifest>(json);
+                if (latestRelease == null || string.IsNullOrWhiteSpace(latestRelease.versionNumber))
+                {
+                    Debug.LogWarning("Game release manifest payload is empty or invalid.");
+                    yield break;
+                }
+
+                string currentVersion = GetCurrentBuildVersion();
+                Debug.Log($"Game release sync: local={currentVersion}, latest={latestRelease.versionNumber}, download={latestRelease.downloadUrl}");
+
+                if (!VersionMatches(currentVersion, latestRelease.versionNumber))
+                {
+                    Debug.LogWarning($"Game build is out of sync with web release. Local={currentVersion}, Latest={latestRelease.versionNumber}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Failed to parse game release manifest: {ex.Message}");
+            }
+        }
+    }
+
+    private IEnumerator ValidateLatestVersionAndEnter(FirebaseUser firebaseUser)
+    {
+        if (firebaseUser == null)
+        {
+            ShowStatus("Không tìm thấy tài khoản đăng nhập.", Color.red);
+            yield break;
+        }
+
+        ShowStatus("Đang kiểm tra phiên bản mới nhất...", Color.white);
+        yield return StartCoroutine(FetchLatestReleaseManifest());
+
+        if (latestRelease == null || string.IsNullOrWhiteSpace(latestRelease.versionNumber))
+        {
+            Debug.LogWarning("Login blocked because the latest release manifest could not be verified.");
+            auth.SignOut();
+            ShowStatus("Không thể xác minh phiên bản mới nhất. Vui lòng kiểm tra mạng và thử lại.", Color.red);
+            yield break;
+        }
+
+        string currentVersion = GetCurrentBuildVersion();
+        if (!VersionMatches(currentVersion, latestRelease.versionNumber))
+        {
+            Debug.LogWarning($"Login blocked because game version is outdated. Local={currentVersion}, Latest={latestRelease.versionNumber}");
+            auth.SignOut();
+
+            // Show auto-update prompt if available, otherwise just show status text
+            if (updatePromptUI != null)
+            {
+                ShowStatus("", Color.clear);
+                updatePromptUI.Show(currentVersion, latestRelease.versionNumber, latestRelease.downloadUrl);
+            }
+            else
+            {
+                ShowStatus($"Phiên bản hiện tại ({currentVersion}) đã cũ. Vui lòng cập nhật lên {latestRelease.versionNumber} trên website.", Color.yellow);
+            }
+            yield break;
+        }
+
+        ValidatePurchaseAccessAndEnter(firebaseUser);
+    }
+
+    private void ValidatePurchaseAccessAndEnter(FirebaseUser firebaseUser)
+    {
+        if (databaseReference == null)
+        {
+            Debug.LogWarning("Firebase database reference is null. Blocking login because purchase validation cannot run.");
+            auth.SignOut();
+            ShowStatus("Không thể kiểm tra trạng thái mua game. Vui lòng thử lại.", Color.red);
+            return;
+        }
+
+        string userPath = FirebaseUserPaths.GetUserRootPath(firebaseUser.UserId);
+        databaseReference.Child(userPath).GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.IsCanceled)
+            {
+                string errorMessage = task.Exception?.GetBaseException().Message ?? "Không thể kiểm tra trạng thái mua game.";
+                Debug.LogError($"Purchase access check failed: {errorMessage}");
+                ShowStatus("Không thể xác minh quyền truy cập. Vui lòng thử lại.", Color.red);
+                auth.SignOut();
+                return;
+            }
+
+            bool hasPurchased = ResolvePurchaseAccess(task.Result);
+            if (!hasPurchased)
+            {
+                Debug.LogWarning($"Login blocked for unpaid account: {firebaseUser.UserId}");
+                auth.SignOut();
+                ShowStatus("Tài khoản này chưa mua game. Hãy thanh toán trên website trước khi chơi.", Color.yellow);
+                return;
+            }
+
+            ShowStatus("Xác minh thành công! Đang vào game...", new Color(0.3f, 1f, 0.3f));
+            StartCoroutine(LoadSceneAfterDelay("AsyncLoadingScene", 0.5f));
+        });
+    }
+
+    private bool ResolvePurchaseAccess(DataSnapshot snapshot)
+    {
+        if (snapshot?.Value == null)
+        {
+            return false;
+        }
+
+        string rawJson = FirebaseJsonUtility.NormalizeReadValue(snapshot.GetRawJsonValue());
+        if (string.IsNullOrWhiteSpace(rawJson) || rawJson == "null")
+        {
+            return false;
+        }
+
+        try
+        {
+            JToken root = JToken.Parse(rawJson);
+            return TryReadBoolean(root["hasPurchased"])
+                || TryReadBoolean(root["profile"]?["hasPurchased"])
+                || TryReadBoolean(root["profile"]?["HasPurchased"]);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to parse purchase access payload: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryReadBoolean(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (token.Type == JTokenType.Boolean)
+            {
+                return token.Value<bool>();
+            }
+
+            if (token.Type == JTokenType.String)
+            {
+                string normalized = FirebaseJsonUtility.NormalizeReadValue(token.ToString());
+                return bool.TryParse(normalized, out bool result) && result;
+            }
+
+            return token.Value<bool>();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private void ShowStatus(string message, Color color)
     {
         if (statusText != null)
         {
-            statusText.text = message;
+            statusText.text = LocalizationManager.LocalizeText(message);
             statusText.color = color;
         }
+
         Debug.Log($"[Login] {message}");
     }
 
@@ -342,32 +661,80 @@ public class FirebaseLoginManager : MonoBehaviour
         databaseManager.WriteDatabase(FirebaseUserPaths.GetUserProfilePath(firebaseUser.UserId), userInGame.ToString());
     }
 
-    /// <summary>
-    /// Extracts a user-friendly error message from Firebase exceptions.
-    /// </summary>
-    private string ParseFirebaseError(System.AggregateException exception)
+    private string ParseFirebaseError(AggregateException exception)
     {
-        if (exception == null) return "Lỗi không xác định.";
+        if (exception == null)
+        {
+            return "Lỗi không xác định.";
+        }
 
         string fullMsg = exception.ToString();
 
         if (fullMsg.Contains("INVALID_LOGIN_CREDENTIALS") || fullMsg.Contains("WRONG_PASSWORD"))
+        {
             return "Email hoặc mật khẩu không đúng.";
+        }
+
         if (fullMsg.Contains("USER_NOT_FOUND"))
+        {
             return "Tài khoản không tồn tại.";
+        }
+
         if (fullMsg.Contains("INVALID_EMAIL"))
+        {
             return "Email không hợp lệ.";
+        }
+
         if (fullMsg.Contains("WEAK_PASSWORD"))
+        {
             return "Mật khẩu quá yếu (cần ít nhất 6 ký tự).";
+        }
+
         if (fullMsg.Contains("EMAIL_ALREADY_IN_USE"))
+        {
             return "Email đã được đăng ký.";
+        }
+
         if (fullMsg.Contains("USER_DISABLED"))
+        {
             return "Tài khoản đã bị khóa.";
+        }
+
         if (fullMsg.Contains("NETWORK") || fullMsg.Contains("network"))
+        {
             return "Lỗi mạng. Kiểm tra kết nối internet.";
+        }
+
         if (fullMsg.Contains("TOO_MANY_ATTEMPTS"))
+        {
             return "Quá nhiều lần thử. Vui lòng đợi rồi thử lại.";
+        }
+
+        if (fullMsg.Contains("restricted to administrators"))
+        {
+            return "Phương thức đăng nhập này chưa được kích hoạt.";
+        }
 
         return "Đăng nhập thất bại. Vui lòng thử lại.";
+    }
+
+    private string GetCurrentBuildVersion()
+    {
+        return string.IsNullOrWhiteSpace(Application.version) ? "unknown" : Application.version.Trim();
+    }
+
+    private bool VersionMatches(string currentVersion, string latestVersion)
+    {
+        return NormalizeVersionLabel(currentVersion) == NormalizeVersionLabel(latestVersion);
+    }
+
+    private string NormalizeVersionLabel(string version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return string.Empty;
+        }
+
+        return version.Trim().ToLowerInvariant().Replace(" ", string.Empty);
     }
 }

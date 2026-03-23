@@ -243,11 +243,6 @@ public class RebuildLoginUI
             0.5f, 0.60f, 340, 55, "GOOGLE",
             new Color32(175, 55, 35, 255), Color.white, 22);
 
-        // Chơi ngay (Guest / Anonymous)
-        Button btnPlayNow = MakeButton("PlayNow", fastPanel.transform,
-            0.5f, 0.35f, 340, 55, "CHƠI NGAY",
-            COL_BTN_GREEN, Color.white, 24);
-
         // =============================================
         //  WIRE FIREBASE LOGIN MANAGER
         // =============================================
@@ -269,9 +264,8 @@ public class RebuildLoginUI
                 mgr.registerForm = registerPanel;
                 // Wire nút đăng nhập nhanh
                 mgr.buttonLoginGoogle = btnLoginGoogle;
-                mgr.buttonPlayNow = btnPlayNow;
                 EditorUtility.SetDirty(mgr);
-                Debug.Log("Wire FirebaseLoginManager: Thanh cong 12 tham chieu!");
+                Debug.Log("Wire FirebaseLoginManager: Thanh cong 11 tham chieu!");
             }
         }
         else
