@@ -17,6 +17,9 @@ public static class BuildRelease
     [MenuItem("Tools/Moonlit Garden/Build Windows Release")]
     public static void PerformBuild()
     {
+        string releaseVersion = ReleaseVersionSync.TrySyncBundleVersion();
+        PlayerSettings.bundleVersion = releaseVersion;
+
         string[] scenes = EditorBuildSettings.scenes
             .Where(scene => scene.enabled)
             .Select(scene => scene.path)
@@ -41,6 +44,7 @@ public static class BuildRelease
         BuildReport report = BuildPipeline.BuildPlayer(options);
         BuildSummary summary = report.summary;
 
+        Debug.Log($"BuildRelease: bundleVersion={PlayerSettings.bundleVersion}");
         Debug.Log($"BuildRelease: result={summary.result}, path={summary.outputPath}, size={summary.totalSize}, warnings={summary.totalWarnings}, errors={summary.totalErrors}");
 
         if (summary.result != BuildResult.Succeeded)
@@ -48,4 +52,5 @@ public static class BuildRelease
             throw new System.Exception($"Windows build failed with result {summary.result}.");
         }
     }
+
 }

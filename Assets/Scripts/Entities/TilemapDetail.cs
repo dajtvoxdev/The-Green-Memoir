@@ -108,6 +108,7 @@ public class TilemapDetail
     /// <summary>
     /// Checks if this tile has a crop planted.
     /// </summary>
+    [JsonIgnore]
     public bool HasCrop => !string.IsNullOrEmpty(cropId);
     
     /// <summary>

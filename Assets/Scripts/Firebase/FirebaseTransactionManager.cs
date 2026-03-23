@@ -225,6 +225,23 @@ public class FirebaseTransactionManager : MonoBehaviour
                 currentJson = NormalizeUserJson(currentJson);
                 User serverUser = JsonConvert.DeserializeObject<User>(currentJson);
 
+                if (!HasUsableMap(localUser))
+                {
+                    JToken serverMapToken = GetMapToken(currentJson);
+                    if (serverMapToken != null && serverMapToken.Type != JTokenType.Null)
+                    {
+                        try
+                        {
+                            localUser.MapInGame = serverMapToken.ToObject<Map>();
+                            Debug.Log("FirebaseTransaction: Preserved server MapInGame because local save payload was missing it.");
+                        }
+                        catch (Exception mapEx)
+                        {
+                            Debug.LogWarning($"FirebaseTransaction: Failed to preserve server MapInGame: {mapEx.Message}");
+                        }
+                    }
+                }
+
                 // Version check: reject if server has newer version
                 if (serverUser != null && serverUser.Version > localUser.Version)
                 {
@@ -253,6 +270,34 @@ public class FirebaseTransactionManager : MonoBehaviour
         }
 
         return result;
+    }
+
+    private bool HasUsableMap(User user)
+    {
+        return user?.MapInGame?.lstTilemapDetail != null
+            && user.MapInGame.lstTilemapDetail.Count > 0;
+    }
+
+    private JToken GetMapToken(string normalizedUserJson)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedUserJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            if (JToken.Parse(normalizedUserJson) is JObject obj)
+            {
+                return obj["MapInGame"]?.DeepClone();
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
     }
 
     private string NormalizeUserJson(string rawJson)

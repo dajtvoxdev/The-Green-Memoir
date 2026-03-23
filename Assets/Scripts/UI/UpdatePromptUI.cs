@@ -199,7 +199,8 @@ public class UpdatePromptUI : MonoBehaviour
         SetStatus("Đang tải bản cập nhật...", Color.white);
 
         // Determine save path
-        string fileName = $"Setup_MoonlitGarden_v{_latestVersion}.exe";
+        string normalizedVersion = NormalizeVersionLabel(_latestVersion);
+        string fileName = $"Setup_MoonlitGarden_{normalizedVersion}.exe";
         string savePath = Path.Combine(Application.temporaryCachePath, fileName);
 
         // Clean up old download if exists
@@ -321,5 +322,18 @@ public class UpdatePromptUI : MonoBehaviour
         if (bytes < 1024) return $"{bytes} B";
         if (bytes < 1048576) return $"{bytes / 1024.0:F1} KB";
         return $"{bytes / 1048576.0:F1} MB";
+    }
+
+    private static string NormalizeVersionLabel(string version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return "latest";
+        }
+
+        string trimmed = version.Trim();
+        return trimmed.StartsWith("v", StringComparison.OrdinalIgnoreCase)
+            ? trimmed
+            : $"v{trimmed}";
     }
 }

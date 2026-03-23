@@ -42,6 +42,7 @@ public class LoadDataManager : MonoBehaviour
     /// Whether user data has been loaded.
     /// </summary>
     public static bool IsDataLoaded { get; private set; } = false;
+    public static bool HasExistingCloudProfile { get; private set; } = false;
 
     /// <summary>
     /// Error message if loading failed.
@@ -164,6 +165,7 @@ public class LoadDataManager : MonoBehaviour
                     userInGame = BuildUserFromSnapshot(task.Result, out shouldSaveProfile, out isNewUser);
 
                     IsDataLoaded = userInGame != null;
+                    HasExistingCloudProfile = !isNewUser;
                     LastErrorMessage = null;
 
                     if (IsDataLoaded)
@@ -191,22 +193,36 @@ public class LoadDataManager : MonoBehaviour
 
                         if (shouldSaveProfile)
                         {
-                            SaveUserInGame((success, error) =>
+                            if (!isNewUser && !HasUsableMap(userInGame))
                             {
-                                if (success)
+                                Debug.LogWarning("LoadDataManager: Skipping profile migration save because the loaded cloud profile is missing MapInGame.");
+                            }
+                            else
+                            {
+                                SaveUserInGame((success, error) =>
                                 {
-                                    Debug.Log("LoadDataManager: User profile migrated to the new schema.");
-                                }
-                                else
-                                {
-                                    Debug.LogWarning($"LoadDataManager: Failed to migrate user profile: {error}");
-                                }
-                            });
+                                    if (success)
+                                    {
+                                        Debug.Log("LoadDataManager: User profile migrated to the new schema.");
+                                    }
+                                    else
+                                    {
+                                        Debug.LogWarning($"LoadDataManager: Failed to migrate user profile: {error}");
+                                    }
+                                });
+                            }
                         }
 
                         if (userInGame?.MapInGame?.lstTilemapDetail == null)
                         {
-                            Debug.LogWarning("LoadDataManager: MapInGame is null or empty. TileMapManager will create a fresh map.");
+                            if (isNewUser)
+                            {
+                                Debug.LogWarning("LoadDataManager: MapInGame is null or empty for a new user. TileMapManager will create a fresh map.");
+                            }
+                            else
+                            {
+                                Debug.LogWarning("LoadDataManager: Existing cloud profile is missing MapInGame.");
+                            }
                         }
                     }
                 }
@@ -214,6 +230,7 @@ public class LoadDataManager : MonoBehaviour
                 {
                     Debug.LogError($"LoadDataManager: Failed to resolve user data: {ex.Message}");
                     IsDataLoaded = false;
+                    HasExistingCloudProfile = false;
                     LastErrorMessage = ex.Message;
                 }
 
@@ -230,6 +247,7 @@ public class LoadDataManager : MonoBehaviour
                 string errorMessage = task.Exception?.GetBaseException().Message ?? "Unknown error";
                 Debug.LogError("LoadDataManager: Failed to load user data: " + errorMessage);
                 IsDataLoaded = false;
+                HasExistingCloudProfile = false;
                 LastErrorMessage = errorMessage;
 
                 onComplete?.Invoke(false);
@@ -251,6 +269,7 @@ public class LoadDataManager : MonoBehaviour
                 StopListening();
                 userInGame = null;
                 IsDataLoaded = false;
+                HasExistingCloudProfile = false;
             }
 
             return;
@@ -263,6 +282,7 @@ public class LoadDataManager : MonoBehaviour
             StopListening();
             userInGame = null;
             IsDataLoaded = false;
+            HasExistingCloudProfile = false;
             LastErrorMessage = null;
         }
 
@@ -291,6 +311,14 @@ public class LoadDataManager : MonoBehaviour
         {
             Debug.LogError("LoadDataManager: User data is null!");
             onComplete?.Invoke(false, "No user data");
+            return;
+        }
+
+        if (HasExistingCloudProfile && !HasUsableMap(userInGame))
+        {
+            const string error = "Local MapInGame is missing. Refusing to overwrite an existing cloud profile.";
+            Debug.LogWarning($"LoadDataManager: {error}");
+            onComplete?.Invoke(false, error);
             return;
         }
 
@@ -394,6 +422,15 @@ public class LoadDataManager : MonoBehaviour
 
             if (serverUser == null) return;
 
+            bool serverMissingMap = serverUser.MapInGame?.lstTilemapDetail == null;
+            bool localHasMap = userInGame?.MapInGame?.lstTilemapDetail != null;
+            if (serverMissingMap && localHasMap)
+            {
+                Debug.LogWarning("LoadDataManager: Listener update is missing MapInGame. Preserving local map and ignoring profile normalization for this event.");
+                serverUser.MapInGame = userInGame.MapInGame;
+                shouldSaveProfile = false;
+            }
+
             bool localMissing = userInGame == null;
             bool hasNewerVersion = userInGame != null && serverUser.Version > userInGame.Version;
             bool purchaseChanged = userInGame != null && serverUser.HasPurchased != userInGame.HasPurchased;
@@ -416,13 +453,20 @@ public class LoadDataManager : MonoBehaviour
 
             if (shouldSaveProfile)
             {
-                SaveUserInGame((success, error) =>
+                if (!isNewUser && !HasUsableMap(serverUser))
                 {
-                    if (!success)
+                    Debug.LogWarning("LoadDataManager: Skipping normalized listener save because the server payload is missing MapInGame.");
+                }
+                else
+                {
+                    SaveUserInGame((success, error) =>
                     {
-                        Debug.LogWarning($"LoadDataManager: Failed to persist normalized listener data: {error}");
-                    }
-                });
+                        if (!success)
+                        {
+                            Debug.LogWarning($"LoadDataManager: Failed to persist normalized listener data: {error}");
+                        }
+                    });
+                }
             }
         }
         catch (Exception ex)
@@ -453,6 +497,7 @@ public class LoadDataManager : MonoBehaviour
 
         userInGame = null;
         IsDataLoaded = false;
+        HasExistingCloudProfile = false;
         LastErrorMessage = null;
     }
 
@@ -483,7 +528,10 @@ public class LoadDataManager : MonoBehaviour
             return CreateDefaultUserProfile();
         }
 
-        string normalizedRootJson = FirebaseJsonUtility.NormalizeReadValue(snapshot.GetRawJsonValue());
+        string rawRootJson = snapshot.GetRawJsonValue();
+        string normalizedRootJson = FirebaseJsonUtility.NormalizeReadValue(rawRootJson);
+        Debug.Log($"LoadDataManager: Snapshot raw json = {rawRootJson}");
+        Debug.Log($"LoadDataManager: Snapshot normalized json = {normalizedRootJson}");
         if (string.IsNullOrEmpty(normalizedRootJson) || normalizedRootJson == "null" || normalizedRootJson == "{}")
         {
             shouldSaveProfile = true;
@@ -526,13 +574,19 @@ public class LoadDataManager : MonoBehaviour
         {
             if (resolvedUser.MapInGame == null)
             {
-                if (HasLegacyMapNode(rootToken))
+                if (isNewUser)
+                {
+                    resolvedUser.MapInGame = new Map();
+                    shouldSaveProfile = true;
+                }
+                else if (HasLegacyMapNode(rootToken))
                 {
                     Debug.LogWarning("LoadDataManager: Found legacy map data under Users/{uid}/map. It does not match the current schema, so a fresh tilemap will be created.");
                 }
-
-                resolvedUser.MapInGame = new Map();
-                shouldSaveProfile = true;
+                else
+                {
+                    Debug.LogWarning("LoadDataManager: Existing cloud profile is missing MapInGame. Automatic profile migration is disabled to avoid overwriting map data.");
+                }
             }
 
             if (string.IsNullOrWhiteSpace(resolvedUser.Name))
@@ -600,8 +654,12 @@ public class LoadDataManager : MonoBehaviour
 
         try
         {
-            User user = JsonConvert.DeserializeObject<User>(json);
-            HydrateUserFromToken(user, token);
+            User user = BuildUserFromToken(token);
+            if (user == null)
+            {
+                user = JsonConvert.DeserializeObject<User>(json);
+                HydrateUserFromToken(user, token);
+            }
             return user;
         }
         catch (Exception ex)
@@ -609,6 +667,50 @@ public class LoadDataManager : MonoBehaviour
             Debug.LogWarning($"LoadDataManager: Failed to deserialize user token: {ex.Message}");
             return null;
         }
+    }
+
+    private User BuildUserFromToken(JToken token)
+    {
+        if (token == null || token.Type != JTokenType.Object)
+        {
+            return null;
+        }
+
+        JObject obj = (JObject)token;
+        if (GetPropertyValueIgnoreCase(obj, "profile") is JObject nestedProfile
+            && GetPropertyValueIgnoreCase(obj, "Name") == null
+            && GetPropertyValueIgnoreCase(obj, "Gold") == null)
+        {
+            obj = nestedProfile;
+        }
+
+        User user = new User
+        {
+            Name = ReadString(GetPropertyValueIgnoreCase(obj, "Name")),
+            Gold = ReadInt(GetPropertyValueIgnoreCase(obj, "Gold")),
+            Diamond = ReadInt(GetPropertyValueIgnoreCase(obj, "Diamond")),
+            Stamina = ReadInt(GetPropertyValueIgnoreCase(obj, "Stamina"), 50),
+            Version = ReadLong(GetPropertyValueIgnoreCase(obj, "Version")),
+            HasPurchased = TryGetBoolean(GetPropertyValueIgnoreCase(obj, "hasPurchased"))
+        };
+
+        JToken mapToken = GetPropertyValueIgnoreCase(obj, "MapInGame");
+        if (mapToken != null && mapToken.Type != JTokenType.Null)
+        {
+            Debug.Log($"LoadDataManager: BuildUserFromToken MapInGame token type = {mapToken.Type}");
+            user.MapInGame = new Map
+            {
+                lstTilemapDetail = TryDeserializeTileList(GetPropertyValueIgnoreCase(mapToken as JObject, "lstTilemapDetail"))
+            };
+
+            Debug.Log($"LoadDataManager: BuildUserFromToken tile count = {user.MapInGame?.lstTilemapDetail?.Count ?? -1}");
+        }
+        else
+        {
+            Debug.LogWarning($"LoadDataManager: BuildUserFromToken did not find a valid MapInGame token. Keys = {string.Join(",", obj.Properties())}");
+        }
+
+        return user;
     }
 
     private void HydrateUserFromToken(User user, JToken token)
@@ -694,6 +796,7 @@ public class LoadDataManager : MonoBehaviour
     {
         if (token == null || token.Type == JTokenType.Null)
         {
+            Debug.LogWarning("LoadDataManager: TryDeserializeTileList received a null token.");
             return null;
         }
 
@@ -708,39 +811,81 @@ public class LoadDataManager : MonoBehaviour
             try
             {
                 token = JToken.Parse(normalized);
+                Debug.Log($"LoadDataManager: TryDeserializeTileList parsed string token into {token.Type}.");
             }
             catch
             {
+                Debug.LogWarning("LoadDataManager: TryDeserializeTileList could not parse string token.");
                 return null;
             }
         }
 
         if (token is JArray array)
         {
+            Debug.Log($"LoadDataManager: TryDeserializeTileList found JArray with {array.Count} entries.");
             try
             {
-                return array.ToObject<List<TilemapDetail>>();
+                List<TilemapDetail> tiles = array.ToObject<List<TilemapDetail>>();
+                Debug.Log($"LoadDataManager: TryDeserializeTileList ToObject success, count = {tiles?.Count ?? -1}");
+                return tiles;
             }
             catch
             {
-                return null;
+                Debug.LogWarning("LoadDataManager: TryDeserializeTileList ToObject failed for JArray. Falling back to manual parse.");
+                return DeserializeTileListManually(array);
             }
         }
 
         if (token is JObject indexedObject)
         {
+            Debug.Log($"LoadDataManager: TryDeserializeTileList found JObject with {indexedObject.Count} indexed entries.");
             JArray normalizedArray = ConvertIndexedObjectToArray(indexedObject);
             try
             {
-                return normalizedArray.ToObject<List<TilemapDetail>>();
+                List<TilemapDetail> tiles = normalizedArray.ToObject<List<TilemapDetail>>();
+                Debug.Log($"LoadDataManager: TryDeserializeTileList indexed ToObject success, count = {tiles?.Count ?? -1}");
+                return tiles;
             }
             catch
             {
-                return null;
+                Debug.LogWarning("LoadDataManager: TryDeserializeTileList indexed ToObject failed. Falling back to manual parse.");
+                return DeserializeTileListManually(normalizedArray);
             }
         }
 
+        Debug.LogWarning($"LoadDataManager: TryDeserializeTileList received unsupported token type {token.Type}.");
         return null;
+    }
+
+    private List<TilemapDetail> DeserializeTileListManually(JArray array)
+    {
+        if (array == null)
+        {
+            return null;
+        }
+
+        var tiles = new List<TilemapDetail>(array.Count);
+        foreach (JToken item in array)
+        {
+            if (item is not JObject tileObj)
+            {
+                continue;
+            }
+
+            tiles.Add(new TilemapDetail
+            {
+                x = ReadInt(tileObj["x"]),
+                y = ReadInt(tileObj["y"]),
+                tilemapState = (TilemapState)ReadInt(tileObj["tilemapState"]),
+                cropId = ReadString(tileObj["cropId"]),
+                plantedAt = ReadLong(tileObj["plantedAt"]),
+                growthStage = ReadInt(tileObj["growthStage"]),
+                lastWateredAt = ReadLong(tileObj["lastWateredAt"])
+            });
+        }
+
+        Debug.Log($"LoadDataManager: DeserializeTileListManually parsed {tiles.Count} tiles.");
+        return tiles.Count > 0 ? tiles : null;
     }
 
     private JArray ConvertIndexedObjectToArray(JObject indexedObject)
@@ -821,6 +966,12 @@ public class LoadDataManager : MonoBehaviour
             && candidate.Version == 0;
     }
 
+    private bool HasUsableMap(User candidate)
+    {
+        return candidate?.MapInGame?.lstTilemapDetail != null
+            && candidate.MapInGame.lstTilemapDetail.Count > 0;
+    }
+
     private bool HasLegacyMapNode(JToken rootToken)
     {
         return rootToken is JObject rootObject && rootObject["map"] != null;
@@ -851,6 +1002,89 @@ public class LoadDataManager : MonoBehaviour
         catch
         {
             return false;
+        }
+    }
+
+    private string ReadString(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return token.Type == JTokenType.String
+                ? FirebaseJsonUtility.NormalizeReadValue(token.ToString(Formatting.None))
+                : token.Value<string>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private JToken GetPropertyValueIgnoreCase(JObject obj, string propertyName)
+    {
+        if (obj == null || string.IsNullOrEmpty(propertyName))
+        {
+            return null;
+        }
+
+        foreach (JProperty property in obj.Properties())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                return property.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private int ReadInt(JToken token, int fallback = 0)
+    {
+        if (token == null || token.Type == JTokenType.Null)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            if (token.Type == JTokenType.Integer)
+            {
+                return token.Value<int>();
+            }
+
+            string normalized = ReadString(token);
+            return int.TryParse(normalized, out int value) ? value : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private long ReadLong(JToken token, long fallback = 0)
+    {
+        if (token == null || token.Type == JTokenType.Null)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            if (token.Type == JTokenType.Integer)
+            {
+                return token.Value<long>();
+            }
+
+            string normalized = ReadString(token);
+            return long.TryParse(normalized, out long value) ? value : fallback;
+        }
+        catch
+        {
+            return fallback;
         }
     }
 

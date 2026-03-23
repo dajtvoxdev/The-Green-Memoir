@@ -101,6 +101,12 @@ public class TileMapManager : MonoBehaviour
         }
         else
         {
+            if (LoadDataManager.HasExistingCloudProfile)
+            {
+                Debug.LogError("TileMapManager: Cloud profile exists but map data was not deserialized. Refusing to overwrite Firebase with a fresh blank map.");
+                return;
+            }
+
             Debug.Log("TileMapManager: No existing map data, creating new map");
             WriteAllTileMapFireBase();
         }

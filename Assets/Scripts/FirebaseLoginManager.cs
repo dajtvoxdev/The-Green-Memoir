@@ -179,13 +179,8 @@ public class FirebaseLoginManager : MonoBehaviour
 
             ShowStatus("Đăng ký thành công! Đang kiểm tra quyền truy cập...", new Color(0.3f, 1f, 0.3f));
 
-            Map mapInGame = new Map();
-            User userInGame = new User("", 100, 50, mapInGame);
-
             FirebaseUser firebaseUser = task.Result.User;
             Debug.Log("Firebase user: " + firebaseUser);
-
-            SeedNewUserProfile(firebaseUser, userInGame);
             StartCoroutine(ValidateLatestVersionAndEnter(firebaseUser));
         });
     }
@@ -430,10 +425,6 @@ public class FirebaseLoginManager : MonoBehaviour
                 Debug.Log($"Google Sign-In success! UID: {user.UserId}, Email: {user.Email}");
 
                 ShowStatus("Đăng nhập Google thành công! Đang kiểm tra quyền truy cập...", new Color(0.3f, 1f, 0.3f));
-
-                Map mapInGame = new Map();
-                User userInGame = new User(user.DisplayName ?? "", 100, 50, mapInGame);
-                SeedNewUserProfile(user, userInGame);
 
                 StartCoroutine(ValidateLatestVersionAndEnter(user));
             });
@@ -733,16 +724,6 @@ public class FirebaseLoginManager : MonoBehaviour
         }
 
         Debug.Log($"[Login] {message}");
-    }
-
-    private void SeedNewUserProfile(FirebaseUser firebaseUser, User userInGame)
-    {
-        if (databaseManager == null || firebaseUser == null || userInGame == null)
-        {
-            return;
-        }
-
-        databaseManager.WriteDatabase(FirebaseUserPaths.GetUserProfilePath(firebaseUser.UserId), userInGame.ToString());
     }
 
     private string ParseFirebaseError(AggregateException exception)
