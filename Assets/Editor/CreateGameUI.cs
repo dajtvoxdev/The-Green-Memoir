@@ -254,15 +254,8 @@ public class CreateGameUI : EditorWindow
         bg.color = new Color32(80, 60, 40, 250);
         bg.type = Image.Type.Sliced;
 
-        // PanelBase
-        PanelBase panelBase = panel.AddComponent<PanelBase>();
-        panelBase.panelId = "settings";
-        panelBase.pauseGameWhenOpen = true;
-        panelBase.closeOnEscape = true;
-
-        // SettingsPanel script
+        // SettingsPanel script (inherits PanelBase, no need for separate PanelBase)
         SettingsPanel settingsPanel = panel.AddComponent<SettingsPanel>();
-        settingsPanel.panelRoot = panel;
         settingsPanel.toggleKey = KeyCode.Escape;
 
         // Title

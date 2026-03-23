@@ -17,10 +17,14 @@ public class SettingsManager : MonoBehaviour
     private const string KEY_BGM        = "setting_bgm_volume";
     private const string KEY_SFX        = "setting_sfx_volume";
     private const string KEY_FULLSCREEN = "setting_fullscreen";
+    private const string KEY_BGM_MUTED  = "setting_bgm_muted";
+    private const string KEY_SFX_MUTED  = "setting_sfx_muted";
 
     public float BGMVolume   { get; private set; } = 0.5f;
     public float SFXVolume   { get; private set; } = 0.7f;
     public bool  IsFullscreen { get; private set; } = false;
+    public bool  IsBGMMuted  { get; private set; } = false;
+    public bool  IsSFXMuted  { get; private set; } = false;
 
     void Awake()
     {
@@ -67,6 +71,28 @@ public class SettingsManager : MonoBehaviour
         PlayerPrefs.SetInt(KEY_FULLSCREEN, fullscreen ? 1 : 0);
     }
 
+    /// <summary>Mutes/unmutes BGM and saves immediately.</summary>
+    public void SetBGMMuted(bool muted)
+    {
+        IsBGMMuted = muted;
+        PlayerPrefs.SetInt(KEY_BGM_MUTED, muted ? 1 : 0);
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.bgmSource.mute = muted;
+        }
+    }
+
+    /// <summary>Mutes/unmutes SFX and saves immediately.</summary>
+    public void SetSFXMuted(bool muted)
+    {
+        IsSFXMuted = muted;
+        PlayerPrefs.SetInt(KEY_SFX_MUTED, muted ? 1 : 0);
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.sfxSource.mute = muted;
+        }
+    }
+
     // ==================== PRIVATE ====================
 
     private void Load()
@@ -74,6 +100,8 @@ public class SettingsManager : MonoBehaviour
         BGMVolume    = PlayerPrefs.GetFloat(KEY_BGM, 0.5f);
         SFXVolume    = PlayerPrefs.GetFloat(KEY_SFX, 0.7f);
         IsFullscreen = PlayerPrefs.GetInt(KEY_FULLSCREEN, 0) == 1;
+        IsBGMMuted   = PlayerPrefs.GetInt(KEY_BGM_MUTED, 0) == 1;
+        IsSFXMuted   = PlayerPrefs.GetInt(KEY_SFX_MUTED, 0) == 1;
     }
 
     /// <summary>
@@ -85,6 +113,12 @@ public class SettingsManager : MonoBehaviour
         AudioManager.Instance?.SetBGMVolume(BGMVolume);
         AudioManager.Instance?.SetSFXVolume(SFXVolume);
         Screen.fullScreen = IsFullscreen;
+
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.bgmSource.mute = IsBGMMuted;
+            AudioManager.Instance.sfxSource.mute = IsSFXMuted;
+        }
     }
 
     void OnDestroy()

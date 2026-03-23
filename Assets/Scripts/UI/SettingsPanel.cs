@@ -1,70 +1,64 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using TMPro;
+using Firebase.Auth;
 
 /// <summary>
-/// Controls the Settings panel UI: BGM/SFX sliders, fullscreen toggle, close button.
-/// Extends PanelBase for integration with UIManager.
-///
-/// Phase 3 Feature (#34): Settings Menu.
-///
-/// Key binding: ESC to open/close.
-/// Wire: bgmSlider, sfxSlider, fullscreenToggle, bgmValueText, sfxValueText in Inspector.
+/// Controls the Settings panel UI: BGM/SFX sliders, audio toggles, fullscreen toggle,
+/// logout button. Works with PanelBase's CanvasGroup fade system.
+/// ESC key toggles the panel. GO stays active so Update() can detect ESC.
 /// </summary>
 public class SettingsPanel : PanelBase
 {
     [Header("UI References")]
-    [Tooltip("Root panel GameObject reference (usually this gameObject).")]
-    public GameObject panelRoot;
-
-    [Tooltip("Slider for BGM volume (0-1).")]
     public Slider bgmSlider;
-
-    [Tooltip("Slider for SFX volume (0-1).")]
     public Slider sfxSlider;
-
-    [Tooltip("Toggle for fullscreen mode.")]
     public Toggle fullscreenToggle;
-
-    [Tooltip("Text showing BGM volume as percentage.")]
     public TMP_Text bgmValueText;
-
-    [Tooltip("Text showing SFX volume as percentage.")]
     public TMP_Text sfxValueText;
 
+    [Header("Audio Toggles")]
+    public Toggle bgmToggle;
+    public Toggle sfxToggle;
+
+    [Header("Buttons")]
+    public Button logoutButton;
+    public Button closeButton;
+
     [Header("Keys")]
-    [Tooltip("Key to open/close settings.")]
     public KeyCode toggleKey = KeyCode.Escape;
 
     private bool isOpen = false;
 
     protected override void Awake()
     {
-        base.Awake();
-        
         panelId = "settings";
         pauseGameWhenOpen = true;
-        closeOnEscape = true;
+        closeOnEscape = false; // We handle ESC ourselves
+
+        // Call base.Awake() so PanelBase initializes its CanvasGroup and targetAlpha
+        base.Awake();
+
+        // PanelBase.Awake() calls SetVisibleImmediate(false) which deactivates the GO.
+        // We need the GO active for ESC detection in Update, so reactivate it
+        // but keep CanvasGroup hidden (alpha=0, non-interactable).
+        gameObject.SetActive(true);
     }
 
     void Start()
     {
+        isOpen = false;
+        WireCloseButton();
         SyncToSettings();
-        
-        // Ensure panel starts hidden
-        if (!isOpen)
-        {
-            SetVisibleImmediate(false);
-            if (panelRoot != null && panelRoot != gameObject)
-                panelRoot.SetActive(false);
-        }
     }
 
-    void Update()
+    protected override void Update()
     {
+        // Let PanelBase handle fade animation
         base.Update();
-        
-        // Handle toggle key
+
+        // Handle ESC toggle
         if (Input.GetKeyDown(toggleKey) && !AnyOtherPanelBlocking())
         {
             TogglePanel();
@@ -75,7 +69,7 @@ public class SettingsPanel : PanelBase
 
     public void TogglePanel()
     {
-        if (IsVisible)
+        if (isOpen)
             ClosePanel();
         else
             ShowPanel();
@@ -83,42 +77,62 @@ public class SettingsPanel : PanelBase
 
     public void ShowPanel()
     {
-        if (panelRoot != null && panelRoot != gameObject)
-            panelRoot.SetActive(true);
-        
-        Show();
+        Debug.Log("SettingsPanel: ShowPanel called");
+
+        if (!gameObject.activeSelf)
+            gameObject.SetActive(true);
+
+        // Use PanelBase's Show() which properly sets targetAlpha=1 and handles fade
+        base.Show();
+        SyncToSettings();
         isOpen = true;
+
+        AudioManager.Instance?.PlaySFX("ui_click");
     }
 
     public void ClosePanel()
     {
-        Hide();
+        Debug.Log("SettingsPanel: ClosePanel called");
+
+        // Use PanelBase's Hide() which sets targetAlpha=0 and handles fade
+        base.Hide();
         isOpen = false;
+
+        // Keep GO active for ESC detection (PanelBase.Hide may deactivate it)
+        gameObject.SetActive(true);
     }
 
     public override void Show()
     {
-        base.Show();
-        SyncToSettings();
-        isOpen = true;
+        ShowPanel();
     }
 
     public override void Hide()
     {
-        base.Hide();
-        isOpen = false;
+        ClosePanel();
     }
 
     // ==================== PRIVATE ====================
 
-    /// <summary>
-    /// Syncs slider/toggle values from SettingsManager and registers callbacks.
-    /// </summary>
+    private void WireCloseButton()
+    {
+        if (closeButton == null)
+        {
+            var closeT = transform.Find("CloseButton");
+            if (closeT != null) closeButton = closeT.GetComponent<Button>();
+        }
+
+        if (closeButton != null)
+        {
+            closeButton.onClick.RemoveListener(ClosePanel);
+            closeButton.onClick.AddListener(ClosePanel);
+        }
+    }
+
     private void SyncToSettings()
     {
         if (SettingsManager.Instance == null) return;
 
-        // Remove existing listeners to avoid duplicates
         if (bgmSlider != null)
         {
             bgmSlider.onValueChanged.RemoveListener(OnBGMChanged);
@@ -138,6 +152,26 @@ public class SettingsPanel : PanelBase
             fullscreenToggle.onValueChanged.RemoveListener(OnFullscreenChanged);
             fullscreenToggle.isOn = SettingsManager.Instance.IsFullscreen;
             fullscreenToggle.onValueChanged.AddListener(OnFullscreenChanged);
+        }
+
+        if (bgmToggle != null)
+        {
+            bgmToggle.onValueChanged.RemoveListener(OnBGMToggleChanged);
+            bgmToggle.isOn = !SettingsManager.Instance.IsBGMMuted;
+            bgmToggle.onValueChanged.AddListener(OnBGMToggleChanged);
+        }
+
+        if (sfxToggle != null)
+        {
+            sfxToggle.onValueChanged.RemoveListener(OnSFXToggleChanged);
+            sfxToggle.isOn = !SettingsManager.Instance.IsSFXMuted;
+            sfxToggle.onValueChanged.AddListener(OnSFXToggleChanged);
+        }
+
+        if (logoutButton != null)
+        {
+            logoutButton.onClick.RemoveListener(OnLogoutClicked);
+            logoutButton.onClick.AddListener(OnLogoutClicked);
         }
 
         UpdateValueTexts();
@@ -160,6 +194,25 @@ public class SettingsPanel : PanelBase
         SettingsManager.Instance?.SetFullscreen(value);
     }
 
+    private void OnBGMToggleChanged(bool isOn)
+    {
+        SettingsManager.Instance?.SetBGMMuted(!isOn);
+    }
+
+    private void OnSFXToggleChanged(bool isOn)
+    {
+        SettingsManager.Instance?.SetSFXMuted(!isOn);
+    }
+
+    private void OnLogoutClicked()
+    {
+        FirebaseAuth.DefaultInstance.SignOut();
+        LoadDataManager.Reset();
+        Time.timeScale = 1f;
+        SceneManager.LoadScene("LoginScene");
+        Debug.Log("SettingsPanel: Logged out, returning to LoginScene.");
+    }
+
     private void UpdateValueTexts()
     {
         if (bgmValueText != null && bgmSlider != null)
@@ -171,25 +224,24 @@ public class SettingsPanel : PanelBase
 
     private bool AnyOtherPanelBlocking()
     {
-        // Check if other panels are open that might block settings
-        if (UIManager.Instance != null)
-        {
-            // Allow settings to open over other panels, but check for specific blocking states
-            // like dialogue which pauses time
-        }
         return false;
     }
 
     void OnDestroy()
     {
-        // Clean up listeners
         if (bgmSlider != null)
             bgmSlider.onValueChanged.RemoveListener(OnBGMChanged);
-        
         if (sfxSlider != null)
             sfxSlider.onValueChanged.RemoveListener(OnSFXChanged);
-        
         if (fullscreenToggle != null)
             fullscreenToggle.onValueChanged.RemoveListener(OnFullscreenChanged);
+        if (bgmToggle != null)
+            bgmToggle.onValueChanged.RemoveListener(OnBGMToggleChanged);
+        if (sfxToggle != null)
+            sfxToggle.onValueChanged.RemoveListener(OnSFXToggleChanged);
+        if (logoutButton != null)
+            logoutButton.onClick.RemoveListener(OnLogoutClicked);
+        if (closeButton != null)
+            closeButton.onClick.RemoveListener(ClosePanel);
     }
 }

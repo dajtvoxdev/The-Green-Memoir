@@ -133,7 +133,6 @@ public class FixSettingsPanelUI : EditorWindow
         SetAnchoredPosition(closeBtnObj, 0, -120);
 
         // Wire up SettingsPanel references
-        settingsPanel.panelRoot = panelRoot;
         settingsPanel.bgmSlider = bgmSliderObj.GetComponent<Slider>();
         settingsPanel.sfxSlider = sfxSliderObj.GetComponent<Slider>();
         settingsPanel.fullscreenToggle = fullscreenToggleObj.GetComponent<Toggle>();

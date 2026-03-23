@@ -243,8 +243,8 @@ public class CropIndicatorUI : MonoBehaviour
 
     private void OnCropHarvestable(int x, int y, CropDefinition cropDef)
     {
-        string cropName = cropDef != null ? cropDef.cropName : "A crop";
-        NotificationManager.Instance?.ShowNotification($"{cropName} is ready to harvest!", 2f);
+        string cropName = cropDef != null ? cropDef.cropName : "Cây trồng";
+        NotificationManager.Instance?.ShowNotification($"{cropName} đã sẵn sàng thu hoạch!", 2f);
     }
 
     void OnDestroy()

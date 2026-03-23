@@ -77,7 +77,7 @@ public class EquipmentManager : MonoBehaviour
         {
             Debug.Log($"Equipment: Equipped '{tool.toolName}' ({tool.toolType})");
             AudioManager.Instance?.PlaySFX("equip");
-            NotificationManager.Instance?.ShowNotification($"Equipped: {tool.toolName}", 1.5f);
+            NotificationManager.Instance?.ShowNotification($"Đã trang bị: {tool.toolName}", 1.5f);
         }
     }
 

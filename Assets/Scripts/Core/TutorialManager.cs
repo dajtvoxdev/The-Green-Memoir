@@ -121,11 +121,11 @@ public class TutorialManager : MonoBehaviour
     {
         string msg = step switch
         {
-            TutorialStep.WalkAround  => "✓ Di chuyển! Dùng WASD hoặc click chuột để đi.",
-            TutorialStep.TillSoil    => "✓ Cuốc đất! Giờ hãy gieo hạt lên đất đã cuốc.",
-            TutorialStep.PlantSeed   => "✓ Gieo hạt! Nhấn [F] để tưới nước cho cây.",
-            TutorialStep.WaterCrop   => "✓ Tưới nước! Cây sẽ lớn theo thời gian.",
-            TutorialStep.HarvestCrop => "✓ Thu hoạch! Bạn đã hoàn thành hướng dẫn!",
+            TutorialStep.WalkAround  => "Di chuyển thành công! Dùng WASD hoặc click chuột để đi.",
+            TutorialStep.TillSoil    => "Cuốc đất xong! Chọn hạt (1-9), rồi chuột phải để gieo.",
+            TutorialStep.PlantSeed   => "Gieo hạt xong! Chuột phải vào cây để tưới nước.",
+            TutorialStep.WaterCrop   => "Tưới nước xong! Cây sẽ lớn theo thời gian.",
+            TutorialStep.HarvestCrop => "Thu hoạch thành công! Bạn đã hoàn thành hướng dẫn!",
             _ => ""
         };
 

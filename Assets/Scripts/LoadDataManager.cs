@@ -352,7 +352,7 @@ public class LoadDataManager : MonoBehaviour
 
                 if (hasNewerVersion)
                 {
-                    NotificationManager.Instance?.ShowNotification("Du lieu da dong bo tu may chu.", 2f);
+                    NotificationManager.Instance?.ShowNotification("Dữ liệu đã đồng bộ từ máy chủ.", 2f);
                 }
             }
 

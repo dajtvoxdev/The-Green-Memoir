@@ -608,9 +608,11 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
         yield return new WaitForSeconds(4f); // After welcome message fades
         NotificationManager.Instance?.ShowNotification("Nhấn [B] để mở túi đồ và chọn hạt giống.", 3.5f);
         yield return new WaitForSeconds(4.5f);
-        NotificationManager.Instance?.ShowNotification("Nhấn [C] để cuốc đất, [V] để gieo hạt.", 3.5f);
+        NotificationManager.Instance?.ShowNotification("Chuột phải vào đất cỏ để cuốc đất.", 3.5f);
         yield return new WaitForSeconds(4.5f);
-        NotificationManager.Instance?.ShowNotification("Nhấn [F] để tưới nước, [M] để thu hoạch.", 3.5f);
+        NotificationManager.Instance?.ShowNotification("Chọn hạt (phím 1-9), rồi chuột phải vào đất đã cuốc để gieo.", 3.5f);
+        yield return new WaitForSeconds(4.5f);
+        NotificationManager.Instance?.ShowNotification("Chuột phải vào cây để tưới nước hoặc thu hoạch.", 3.5f);
         yield return new WaitForSeconds(4.5f);
         NotificationManager.Instance?.ShowNotification("Đến gặp người bán hàng và nhấn [E] để mua thêm hạt giống!", 4f);
     }

@@ -193,7 +193,7 @@ public class GameTimeManager : MonoBehaviour
                 // Notify player
                 if (NotificationManager.Instance != null)
                 {
-                    NotificationManager.Instance.ShowNotification($"Day {currentDay} has begun!", 3f);
+                    NotificationManager.Instance.ShowNotification($"Ngày {currentDay} bắt đầu!", 3f);
                 }
             }
 
