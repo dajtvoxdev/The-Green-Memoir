@@ -132,6 +132,27 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
 
     private void Start()
     {
+        LoadDataManager.OnUserLoaded += HandleUserLoaded;
+
+        if (LoadDataManager.IsDataLoaded && LoadDataManager.firebaseUser != null)
+        {
+            HandleUserLoaded(true);
+        }
+        else
+        {
+            Debug.Log("RecyclableInventoryManager: Waiting for loaded Firebase user before inventory bootstrap.");
+        }
+    }
+
+    private void HandleUserLoaded(bool success)
+    {
+        if (!success || LoadDataManager.firebaseUser == null)
+        {
+            return;
+        }
+
+        LoadDataManager.OnUserLoaded -= HandleUserLoaded;
+
         LoadInventoryFromFirebase(success =>
         {
             if (!success)
@@ -642,6 +663,7 @@ public class RecyclableInventoryManager : MonoBehaviour, IRecyclableScrollRectDa
 
     void OnDestroy()
     {
+        LoadDataManager.OnUserLoaded -= HandleUserLoaded;
         FlushSave();
     }
 

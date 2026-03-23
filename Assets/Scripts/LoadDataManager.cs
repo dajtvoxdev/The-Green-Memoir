@@ -55,6 +55,8 @@ public class LoadDataManager : MonoBehaviour
     private DatabaseReference reference;
     private DatabaseReference userRef;
     private bool isInitialLoad = true;
+    private FirebaseAuth auth;
+    private bool isLoadInFlight = false;
 
     private const int DefaultStarterGold = 200;
     private const int DefaultStarterDiamond = 10;
@@ -72,7 +74,9 @@ public class LoadDataManager : MonoBehaviour
             DontDestroyOnLoad(gameObject);
 
             FirebaseApp app = FirebaseApp.DefaultInstance;
+            auth = FirebaseAuth.DefaultInstance;
             reference = FirebaseDatabase.DefaultInstance.RootReference;
+            auth.StateChanged += OnAuthStateChanged;
 
             RefreshFirebaseUser();
 
@@ -107,6 +111,10 @@ public class LoadDataManager : MonoBehaviour
         {
             Debug.Log($"LoadDataManager: Firebase user = {firebaseUser.UserId}");
         }
+        else
+        {
+            Debug.Log("LoadDataManager: Firebase user is still null.");
+        }
     }
 
     void Update()
@@ -121,6 +129,12 @@ public class LoadDataManager : MonoBehaviour
     /// <param name="onComplete">Callback with success status</param>
     public void GetUserInGame(Action<bool> onComplete = null)
     {
+        if (isLoadInFlight)
+        {
+            Debug.Log("LoadDataManager: User data load already in progress.");
+            return;
+        }
+
         if (firebaseUser == null)
         {
             Debug.LogError("LoadDataManager: Firebase user is null!");
@@ -129,8 +143,12 @@ public class LoadDataManager : MonoBehaviour
             return;
         }
 
+        isLoadInFlight = true;
+
         reference.Child("Users").Child(firebaseUser.UserId).GetValueAsync().ContinueWithOnMainThread(task =>
         {
+            isLoadInFlight = false;
+
             if (task.IsCompleted && !task.IsFaulted && task.Result != null)
             {
                 try
@@ -212,6 +230,40 @@ public class LoadDataManager : MonoBehaviour
                 OnUserLoaded?.Invoke(false);
             }
         });
+    }
+
+    private void OnAuthStateChanged(object sender, EventArgs args)
+    {
+        FirebaseUser previousUser = firebaseUser;
+        RefreshFirebaseUser();
+
+        if (firebaseUser == null)
+        {
+            if (previousUser != null)
+            {
+                Debug.Log("LoadDataManager: Auth state changed to signed-out.");
+                StopListening();
+                userInGame = null;
+                IsDataLoaded = false;
+            }
+
+            return;
+        }
+
+        bool userChanged = previousUser == null || previousUser.UserId != firebaseUser.UserId;
+        if (userChanged)
+        {
+            Debug.Log($"LoadDataManager: Auth state changed. Preparing data load for {firebaseUser.UserId}");
+            StopListening();
+            userInGame = null;
+            IsDataLoaded = false;
+            LastErrorMessage = null;
+        }
+
+        if (!IsDataLoaded && !isLoadInFlight)
+        {
+            GetUserInGame();
+        }
     }
 
     /// <summary>
@@ -401,6 +453,11 @@ public class LoadDataManager : MonoBehaviour
     private void OnDestroy()
     {
         StopListening();
+
+        if (auth != null)
+        {
+            auth.StateChanged -= OnAuthStateChanged;
+        }
 
         if (Instance == this)
         {
